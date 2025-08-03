@@ -1,11 +1,6 @@
 {
   "version": 2,
   "name": "invoice-chain-agent",
-  "functions": {
-    "api/index.py": {
-      "runtime": "@vercel/python"
-    }
-  },
   "builds": [
     {
       "src": "api/index.py",
@@ -37,10 +32,5 @@
       "src": "/(.*)",
       "dest": "index.html"
     }
-  ],
-  "env": {
-    "CANISTER_ID": "uxrrr-q7777-77774-qaaaq-cai",
-    "ICP_NETWORK": "testnet",
-    "OPENAI_API_BASE": "https://openrouter.ai/api/v1"
-  }
+  ]
 }
