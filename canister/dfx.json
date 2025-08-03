@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "canisters": {
+    "invoice_logger": {
+      "type": "motoko",
+      "main": "src/invoice_logger.mo"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:4943",
+      "type": "ephemeral"
+    },
+    "testnet": {
+      "providers": ["https://testnet.dfinity.network"],
+      "type": "persistent"
+    },
+    "ic": {
+      "providers": ["https://icp0.io"],
+      "type": "persistent"
+    }
+  }
+}

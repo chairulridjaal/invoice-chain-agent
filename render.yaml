@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: invoice-chain-agent
+    env: python
+    buildCommand: |
+      # Install Python dependencies
+      pip install -r requirements.txt
+      # Install system dependencies for Tesseract OCR
+      apt-get update && apt-get install -y tesseract-ocr tesseract-ocr-eng
+      # Build React frontend
+      cd frontend && npm install && npm run build && cd ..
+      # Copy frontend build to static directory
+      mkdir -p static && cp -r frontend/dist/* static/
+    startCommand: gunicorn wsgi:application --bind 0.0.0.0:$PORT --workers 1 --timeout 120
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_API_BASE
+        value: https://openrouter.ai/api/v1
+      - key: ICP_NETWORK
+        value: ic
+      - key: CANISTER_ID
+        value: uxrrr-q7777-77774-qaaaq-cai
+      - key: DEPLOYMENT_MODE
+        value: production

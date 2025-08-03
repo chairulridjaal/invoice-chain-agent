@@ -1,0 +1,127 @@
+{
+  "purchase_orders": [
+    {
+      "po_number": "PO-2025-001",
+      "vendor_name": "TechSupply Corp",
+      "vendor_tax_id": "12-3456789",
+      "total_amount": 15000.00,
+      "status": "open",
+      "created_date": "2025-07-15",
+      "due_date": "2025-08-15",
+      "line_items": [
+        {
+          "description": "Software Licenses",
+          "quantity": 10,
+          "unit_price": 1200.00,
+          "total": 12000.00
+        },
+        {
+          "description": "Support Services",
+          "quantity": 1,
+          "unit_price": 3000.00,
+          "total": 3000.00
+        }
+      ]
+    },
+    {
+      "po_number": "PO-2025-002",
+      "vendor_name": "Office Solutions Ltd",
+      "vendor_tax_id": "98-7654321",
+      "total_amount": 2500.00,
+      "status": "open",
+      "created_date": "2025-07-20",
+      "due_date": "2025-08-20",
+      "line_items": [
+        {
+          "description": "Office Furniture",
+          "quantity": 5,
+          "unit_price": 500.00,
+          "total": 2500.00
+        }
+      ]
+    },
+    {
+      "po_number": "PO-2025-003",
+      "vendor_name": "Marketing Agency Plus",
+      "vendor_tax_id": "55-1122334",
+      "total_amount": 8500.00,
+      "status": "open",
+      "created_date": "2025-07-25",
+      "due_date": "2025-08-25",
+      "line_items": [
+        {
+          "description": "Digital Campaign",
+          "quantity": 1,
+          "unit_price": 8500.00,
+          "total": 8500.00
+        }
+      ]
+    },
+    {
+      "po_number": "GALT-009",
+      "vendor_name": "Fountainhead A+E",
+      "vendor_tax_id": "12-3456789",
+      "total_amount": 11812.50,
+      "status": "open",
+      "created_date": "2013-08-31",
+      "due_date": "2025-09-30",
+      "line_items": [
+        {
+          "description": "Professional Services Rendered",
+          "quantity": 1,
+          "unit_price": 11812.50,
+          "total": 11812.50
+        }
+      ]
+    }
+  ],
+  "approved_vendors": [
+    {
+      "vendor_name": "TechSupply Corp",
+      "tax_id": "12-3456789",
+      "status": "approved",
+      "risk_level": "low",
+      "credit_limit": 50000.00
+    },
+    {
+      "vendor_name": "Office Solutions Ltd",
+      "tax_id": "98-7654321",
+      "status": "approved",
+      "risk_level": "low",
+      "credit_limit": 25000.00
+    },
+    {
+      "vendor_name": "Marketing Agency Plus",
+      "tax_id": "55-1122334",
+      "status": "approved",
+      "risk_level": "medium",
+      "credit_limit": 15000.00
+    },
+    {
+      "vendor_name": "Global Services Inc",
+      "tax_id": "11-2233445",
+      "status": "pending",
+      "risk_level": "high",
+      "credit_limit": 5000.00
+    },
+    {
+      "vendor_name": "Fountainhead A+E",
+      "tax_id": "12-3456789",
+      "status": "approved",
+      "risk_level": "low",
+      "credit_limit": 25000.00
+    }
+  ],
+  "blacklisted_vendors": [
+    {
+      "vendor_name": "Fraudulent Corp",
+      "tax_id": "99-9999999",
+      "reason": "Payment fraud detected"
+    },
+    {
+      "vendor_name": "Suspicious LLC",
+      "tax_id": "00-0000000",
+      "reason": "Multiple failed transactions"
+    }
+  ]
+}
