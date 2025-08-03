@@ -80,6 +80,26 @@
             <input type="file" id="fileInput" style="display: none;" accept=".pdf,.jpg,.jpeg,.png" onchange="processFile(this)">
         </div>
         
+        <div style="margin: 2rem 0; text-align: center;">
+            <button onclick="toggleManualInput()" style="padding: 1rem 2rem; background: rgba(255, 255, 255, 0.2); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem;">
+                ✏️ Manual Input
+            </button>
+        </div>
+        
+        <div id="manualInput" style="display: none; background: rgba(255, 255, 255, 0.1); padding: 2rem; border-radius: 12px; margin: 2rem 0;">
+            <h3>Manual Invoice Entry</h3>
+            <form id="manualForm" style="display: grid; gap: 1rem; max-width: 500px; margin: 0 auto;">
+                <input type="text" id="invoiceId" placeholder="Invoice ID (e.g., INV-2025-001)" required style="padding: 0.75rem; border: none; border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #333;">
+                <input type="text" id="vendorName" placeholder="Vendor Name (e.g., Acme Corp)" required style="padding: 0.75rem; border: none; border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #333;">
+                <input type="text" id="taxId" placeholder="Tax ID (e.g., 12-3456789)" required style="padding: 0.75rem; border: none; border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #333;">
+                <input type="number" id="amount" placeholder="Amount (e.g., 1500.00)" step="0.01" required style="padding: 0.75rem; border: none; border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #333;">
+                <input type="date" id="date" required style="padding: 0.75rem; border: none; border-radius: 6px; background: rgba(255, 255, 255, 0.9); color: #333;">
+                <button type="submit" style="padding: 1rem; background: #ffd700; color: #333; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1rem;">
+                    🔍 Validate Invoice
+                </button>
+            </form>
+        </div>
+        
         <div class="features">
             <div class="feature">
                 <h3>🤖 Multi-Agent System</h3>
@@ -110,6 +130,32 @@
             document.getElementById('fileInput').click();
         }
         
+        function toggleManualInput() {
+            const manualInput = document.getElementById('manualInput');
+            manualInput.style.display = manualInput.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        // Set today's date as default
+        document.addEventListener('DOMContentLoaded', function() {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('date').value = today;
+        });
+        
+        // Handle manual form submission
+        document.getElementById('manualForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const invoiceData = {
+                invoice_id: document.getElementById('invoiceId').value,
+                vendor_name: document.getElementById('vendorName').value,
+                tax_id: document.getElementById('taxId').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                date: document.getElementById('date').value
+            };
+            
+            await validateInvoiceData(invoiceData, 'manual');
+        });
+        
         async function processFile(input) {
             const file = input.files[0];
             if (!file) return;
@@ -117,33 +163,78 @@
             const formData = new FormData();
             formData.append('file', file);
             
+            await validateInvoiceData(formData, 'file');
+        }
+        
+        async function validateInvoiceData(data, type) {
             try {
                 // Show loading
-                document.querySelector('.upload-area').innerHTML = '<h2>⏳ Processing...</h2><p>AI is analyzing your invoice...</p>';
+                const uploadArea = document.querySelector('.upload-area');
+                const originalContent = uploadArea.innerHTML;
+                uploadArea.innerHTML = '<h2>⏳ Processing...</h2><p>AI is analyzing your invoice...</p>';
+                
+                // Prepare request
+                const requestOptions = {
+                    method: 'POST'
+                };
+                
+                if (type === 'file') {
+                    requestOptions.body = data;
+                } else {
+                    requestOptions.headers = {
+                        'Content-Type': 'application/json'
+                    };
+                    requestOptions.body = JSON.stringify(data);
+                }
                 
                 // Call API
-                const response = await fetch('/api/validate', {
-                    method: 'POST',
-                    body: formData
-                });
+                const response = await fetch('/api/validate', requestOptions);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
                 
                 const result = await response.json();
                 
                 // Show results
-                document.querySelector('.upload-area').innerHTML = `
-                    <h2>✅ Validation Complete</h2>
-                    <p><strong>Status:</strong> ${result.status || 'processed'}</p>
-                    <p><strong>Score:</strong> ${result.score || 'calculated'}/100</p>
-                    <p><strong>Blockchain:</strong> ${result.blockchain ? '✅ Logged' : '⏳ Processing'}</p>
-                    <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #ffd700; color: #333; border: none; border-radius: 4px; cursor: pointer;">Upload Another</button>
+                const scoreColor = result.score >= 80 ? '#4CAF50' : result.score >= 60 ? '#FF9800' : '#F44336';
+                const statusIcon = result.status === 'approved' ? '✅' : result.status === 'approved_with_conditions' ? '⚠️' : '❌';
+                
+                uploadArea.innerHTML = `
+                    <h2>${statusIcon} Validation Complete</h2>
+                    <div style="text-align: left; margin: 1rem 0;">
+                        <p><strong>Invoice ID:</strong> ${result.invoice_data?.invoice_id || 'N/A'}</p>
+                        <p><strong>Vendor:</strong> ${result.invoice_data?.vendor_name || 'N/A'}</p>
+                        <p><strong>Amount:</strong> $${(result.invoice_data?.amount || 0).toLocaleString()}</p>
+                        <p><strong>Status:</strong> ${result.status || 'Unknown'}</p>
+                        <p><strong>Score:</strong> <span style="color: ${scoreColor}; font-weight: bold;">${result.score || 0}/100</span></p>
+                        <p><strong>Blockchain:</strong> ${result.blockchain?.logged ? '✅ Logged' : '⏳ Processing'}</p>
+                        ${result.blockchain?.transaction_hash ? `<p><strong>TX Hash:</strong> ${result.blockchain.transaction_hash}</p>` : ''}
+                    </div>
+                    <button onclick="resetForm()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #ffd700; color: #333; border: none; border-radius: 4px; cursor: pointer;">Process Another</button>
                 `;
+                
+                // Hide manual input if it was used
+                if (type === 'manual') {
+                    document.getElementById('manualInput').style.display = 'none';
+                    document.getElementById('manualForm').reset();
+                    const today = new Date().toISOString().split('T')[0];
+                    document.getElementById('date').value = today;
+                }
+                
             } catch (error) {
+                console.error('Validation error:', error);
                 document.querySelector('.upload-area').innerHTML = `
                     <h2>❌ Error</h2>
                     <p>Processing failed: ${error.message}</p>
-                    <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #ffd700; color: #333; border: none; border-radius: 4px; cursor: pointer;">Try Again</button>
+                    <p style="font-size: 0.9rem; opacity: 0.8;">Check the console for more details</p>
+                    <button onclick="resetForm()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #ffd700; color: #333; border: none; border-radius: 4px; cursor: pointer;">Try Again</button>
                 `;
             }
+        }
+        
+        function resetForm() {
+            location.reload();
         }
     </script>
 </body>
