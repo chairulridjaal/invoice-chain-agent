@@ -7,19 +7,27 @@ import os
 import openai
 from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Load environment variables from the project root
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+env_path = os.path.join(project_root, '.env')
+load_dotenv(env_path)
 
 # Configure tesseract path for Windows
 pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
-# Configure OpenAI client for OpenRouter
-print(f"🔑 API Key loaded: {bool(os.getenv('OPENAI_API_KEY'))}")
-print(f"🌐 Base URL: {os.getenv('OPENAI_API_BASE')}")
+# Configure OpenAI client
+api_key = os.getenv('OPENAI_API_KEY')
+base_url = os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+
+print(f"🔑 API Key loaded: {bool(api_key)}")
+print(f"🔑 API Key prefix: {api_key[:10] if api_key else 'None'}...")
+print(f"🌐 Base URL: {base_url}")
+print(f"📁 Environment file path: {env_path}")
+print(f"📁 Environment file exists: {os.path.exists(env_path)}")
 
 client = openai.OpenAI(
-    api_key=os.getenv('OPENAI_API_KEY'),
-    base_url=os.getenv("OPENAI_API_BASE"),
+    api_key=api_key,
+    base_url=base_url,
     default_headers={
         "HTTP-Referer": "https://localhost:8001",  # Required for some OpenRouter models
         "X-Title": "Invoice Chain Agent"  # Optional app identification
@@ -58,13 +66,15 @@ def extract_invoice_data_with_gpt(text):
     """Use GPT-4 to intelligently extract invoice data from OCR text"""
     try:
         print("🤖 Using GPT-4 for intelligent invoice data extraction...")
-        api_key = os.getenv('OPENAI_API_KEY')
-        base_url = os.getenv('OPENAI_API_BASE')
         
         print(f"🔑 Debug - API Key exists: {bool(api_key)}")
         print(f"🔑 Debug - API Key prefix: {api_key[:10] if api_key else 'None'}...")
         print(f"🌐 Debug - Base URL: {base_url}")
         print(f"📋 Debug - Client config: {type(client)}")
+        
+        if not api_key or api_key.startswith('your_'):
+            print("❌ Invalid API key detected. Please update your .env file with a real OpenAI API key.")
+            return None
         
         prompt = f"""
 You are an expert at extracting invoice data from OCR text. Please analyze the following text and extract the key invoice information. The text might be messy from OCR, so use your intelligence to identify the correct values.
@@ -101,7 +111,7 @@ Example format:
         )
         
         response = fresh_client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="openai/gpt-4o-mini",  # OpenRouter model name
             messages=[
                 {"role": "system", "content": "You are an expert invoice data extraction assistant. Extract data accurately and return only JSON."},
                 {"role": "user", "content": prompt}

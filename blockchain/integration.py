@@ -14,6 +14,12 @@ class BlockchainIntegration:
         self.canister_id = os.getenv("CANISTER_ID", "uxrrr-q7777-77774-qaaaq-cai")  # Your deployed canister ID
         self.network = os.getenv("ICP_NETWORK", "local")  # local, testnet, or ic
         self.dfx_path = os.getenv("DFX_PATH", "dfx")  # Path to dfx binary
+        
+        # Debug logging for network configuration
+        print(f"🔧 BlockchainIntegration initialized:")
+        print(f"   Canister ID: {self.canister_id}")
+        print(f"   Network: {self.network}")
+        print(f"   DFX Path: {self.dfx_path}")
     
     def log_invoice(self, audit_record: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -27,6 +33,7 @@ class BlockchainIntegration:
             
             # For production deployment, use HTTP API calls to ICP
             # This works from any environment (Render, AWS, etc.)
+            print(f"🚀 Attempting to log invoice {invoice_data.get('invoice_id')} to ICP...")
             try:
                 result = self._call_canister_http(
                     "storeInvoice",
@@ -42,18 +49,46 @@ class BlockchainIntegration:
                     }
                 )
                 
+                print(f"🔍 HTTP Call Result: {result}")
+                
                 if result.get('success'):
-                    return {
-                        "success": True,
-                        "message": f"Invoice {invoice_data.get('invoice_id')} stored on ICP blockchain via HTTP API",
-                        "canister_id": self.canister_id,
-                        "network": self.network,
-                        "mode": "production_http",
-                        "blockchain_response": result.get('response', ''),
-                        "transaction_hash": f"ICP-{hash(str(audit_record)) % 10**16:016x}"
-                    }
+                    # Verify the actual blockchain response
+                    canister_response = result.get('response', '')
+                    if canister_response.strip() == '(true)':
+                        # Double-check by trying to retrieve the invoice
+                        verification_result = self._verify_invoice_stored(invoice_data.get('id', ''))
+                        
+                        if "✅ verified_in_canister" in verification_result:
+                            message = f"✅ Invoice {invoice_data.get('id')} CONFIRMED stored on ICP blockchain"
+                            verification_status = "confirmed"
+                        else:
+                            message = f"⚠️ Invoice {invoice_data.get('id')} stored (canister returned true) but verification pending"
+                            verification_status = "pending_verification"
+                        
+                        return {
+                            "success": True,
+                            "message": message,
+                            "canister_id": self.canister_id,
+                            "network": self.network,
+                            "mode": "production_http",
+                            "blockchain_response": result.get('response', ''),
+                            "transaction_hash": f"ICP-{hash(str(audit_record)) % 10**16:016x}",
+                            "verification": verification_result,
+                            "verification_status": verification_status
+                        }
+                    else:
+                        return {
+                            "success": False,
+                            "message": f"⚠️ Invoice {invoice_data.get('invoice_id')} blockchain call succeeded but got unexpected response",
+                            "canister_id": self.canister_id,
+                            "network": self.network,
+                            "mode": "production_http_warning", 
+                            "blockchain_response": result.get('response', ''),
+                            "verification": "unexpected_canister_response"
+                        }
                 else:
                     # Enhanced simulation for production
+                    print("❌ HTTP call unsuccessful, falling back to simulation")
                     return self._simulate_blockchain_log(audit_record)
                     
             except Exception as api_error:
@@ -71,6 +106,12 @@ class BlockchainIntegration:
         Call ICP canister via HTTP API (production method)
         """
         try:
+            # For local development, always prefer dfx over HTTP
+            if self.network == "local":
+                print(f"🔧 Using dfx for local development...")
+                return self._call_canister_dfx(method, data)
+            
+            # For deployed networks, use HTTP API
             import requests
             
             # ICP HTTP Gateway endpoint (works from any environment)
@@ -81,21 +122,57 @@ class BlockchainIntegration:
                 # Testnet
                 base_url = f"https://{self.canister_id}.dfinity.network"
             else:
-                # Local development - won't work from Render, but that's ok
+                # Should not reach here for local
                 base_url = f"http://127.0.0.1:4943"
             
-            # Construct the API call
-            endpoint = f"{base_url}/api/v2/canister/{self.canister_id}/call"
-            
-            print(f"🌐 Calling ICP HTTP API: {endpoint}")
+            print(f"🌐 Attempting ICP HTTP API call: {base_url}")
             print(f"📤 Method: {method}, Data: {data}")
             
-            # For now, return success simulation since HTTP API setup requires additional config
-            # In full production, this would make the actual HTTP call
+            # Try to make actual HTTP call to canister
+            try:
+                # Construct the proper Candid interface call
+                candid_args = f'(record {{ id = "{data.get("id", "")}"; vendor_name = "{data.get("vendor_name", "")}"; tax_id = "{data.get("tax_id", "")}"; amount = {data.get("amount", 0)}; date = "{data.get("date", "")}"; status = "{data.get("status", "")}"; explanation = "{data.get("explanation", "")}"; blockchain_hash = null }})'
+                
+                if self.network == "local":
+                    # For local development, try dfx call
+                    print(f"🔧 Attempting dfx call for local network...")
+                    result = self._call_canister_dfx(method, data)
+                    print(f"🔍 DFX Result: {result}")
+                    if result.get('success'):
+                        return result
+                    else:
+                        print(f"⚠️ DFX call failed: {result.get('error', 'Unknown error')}")
+                else:
+                    # For deployed canisters, use HTTP API
+                    endpoint = f"{base_url}/{method}"
+                    headers = {"Content-Type": "application/json"}
+                    
+                    # Make the HTTP request with timeout
+                    response = requests.post(endpoint, json=data, headers=headers, timeout=10)
+                    
+                    if response.status_code == 200:
+                        return {
+                            "success": True,
+                            "response": response.text,
+                            "endpoint": endpoint,
+                            "http_status": response.status_code
+                        }
+                    else:
+                        print(f"⚠️ HTTP call failed with status: {response.status_code}")
+                        
+            except requests.exceptions.RequestException as e:
+                print(f"⚠️ HTTP request failed: {e}")
+            except Exception as e:
+                print(f"⚠️ Canister call failed: {e}")
+            
+            # If HTTP fails, use enhanced simulation
+            print("📝 Using enhanced blockchain simulation (canister unreachable)")
             return {
                 "success": True,
-                "response": f"Simulated HTTP API call to {method}",
-                "endpoint": endpoint
+                "response": f"Enhanced simulation - {method} called with data",
+                "endpoint": base_url,
+                "mode": "simulation_fallback",
+                "reason": "canister_unreachable"
             }
             
         except Exception as e:
@@ -103,6 +180,112 @@ class BlockchainIntegration:
                 "success": False,
                 "error": str(e)
             }
+    
+    def _call_canister_dfx(self, method: str, invoice_data: dict) -> Dict[str, Any]:
+        """
+        Call ICP canister using dfx CLI (for local development)
+        """
+        try:
+            # Build the proper Candid arguments for storeInvoice
+            if method == "storeInvoice":
+                # Sanitize explanation text to avoid bash issues
+                explanation = invoice_data.get("explanation", "").replace('"', '\\"').replace('\n', ' ').replace(')', '\\)')
+                explanation = explanation[:200]  # Truncate to avoid command line length issues
+                
+                candid_args = f'("{invoice_data.get("id", "")}", "{invoice_data.get("vendor_name", "")}", "{invoice_data.get("tax_id", "")}", {invoice_data.get("amount", 0)}, "{invoice_data.get("date", "")}", "{invoice_data.get("status", "")}", "{explanation}", null)'
+            else:
+                # For other methods, use generic format
+                candid_args = f'("{invoice_data.get("id", "")}")'
+            
+            # Build the dfx command for WSL
+            cmd = [
+                "wsl", "bash", "-c", 
+                f'source ~/.local/share/dfx/env && cd /mnt/c/Users/User/Documents/GitHub/invoice-chain-agent/canister && {self.dfx_path} canister call --network {self.network} {self.canister_id} {method} \'{candid_args}\''
+            ]
+            
+            print(f"🔗 Calling ICP canister via dfx: {method}")
+            print(f"🔧 Command: {' '.join(cmd)}")
+            
+            # Execute the command with proper working directory
+            canister_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'canister')
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=canister_dir
+            )
+            
+            print(f"📤 Return code: {result.returncode}")
+            print(f"📝 STDOUT: {result.stdout}")
+            if result.stderr:
+                print(f"⚠️ STDERR: {result.stderr}")
+            
+            if result.returncode == 0:
+                return {
+                    "success": True,
+                    "response": result.stdout.strip(),
+                    "method": "dfx_local",
+                    "canister_output": result.stdout
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": f"dfx call failed: {result.stderr}",
+                    "return_code": result.returncode
+                }
+                
+        except subprocess.TimeoutExpired:
+            return {
+                "success": False,
+                "error": "dfx call timed out (30s)"
+            }
+        except FileNotFoundError:
+            return {
+                "success": False,
+                "error": "dfx command not found - please install dfx CLI"
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def _verify_invoice_stored(self, invoice_id: str) -> str:
+        """
+        Verify that an invoice was actually stored in the canister
+        """
+        try:
+            import time
+            # Add longer delay to allow for blockchain state propagation
+            time.sleep(1.5)
+            
+            # Use getAllInvoices instead of getInvoice to avoid quote escaping issues
+            cmd = [
+                "wsl", "bash", "-c", 
+                f'source ~/.local/share/dfx/env && cd /mnt/c/Users/User/Documents/GitHub/invoice-chain-agent/canister && dfx canister call --network {self.network} {self.canister_id} getAllInvoices "()"'
+            ]
+            
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=15
+            )
+            
+            if result.returncode == 0:
+                output = result.stdout.strip()
+                # Check if our invoice ID appears in the output
+                if f'id = "{invoice_id}"' in output:
+                    return "✅ verified_in_canister"
+                else:
+                    return f"⚠️ not_found_in_canister_list (searched for: {invoice_id})"
+            else:
+                return f"⚠️ verification_cmd_failed: rc={result.returncode}, stderr={result.stderr}"
+                
+        except Exception as e:
+            return f"⚠️ verification_failed: {str(e)}"
     
     def _simulate_blockchain_log(self, audit_record: Dict[str, Any]) -> Dict[str, Any]:
         """Enhanced production simulation with realistic blockchain features"""

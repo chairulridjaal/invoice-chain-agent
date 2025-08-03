@@ -1,7 +1,15 @@
 from uagents import Agent, Context, Protocol, Model
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables
+env_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), '.env')
+load_dotenv(env_path)
+
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add root directory to path for blockchain integration
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from utils.openai_explain import explain_validation
 from blockchain.integration import BlockchainIntegration
 from utils.ocr_processor import process_uploaded_invoice
@@ -86,31 +94,33 @@ def process_invoice(invoice_data):
         
         print(f"\n🎯 Final Decision: {status.upper()}")
         
-        # Submit to blockchain if approved
+        # Submit to blockchain - log all invoices for audit trail
         blockchain_result = None
-        if status in ["approved", "approved_with_conditions"]:
-            try:
-                # Create comprehensive audit record with proper structure for blockchain
-                audit_record = {
-                    "invoice_data": invoice_data,  # Include the full invoice data
-                    "status": status,
-                    "explanation": explanation,
-                    "validation_score": validation_details["overall_score"],
-                    "timestamp": datetime.now().isoformat(),
-                    "validation_stages": validation_details,
-                    "issues_count": len(issues),
-                    "agent_decision": "automated_approval" if status == "approved" else "conditional_approval"
-                }
-                
-                # Submit to real ICP canister
-                blockchain_result = blockchain.log_invoice(audit_record)
-                print(f"🔗 Blockchain: {blockchain_result.get('message', 'Logged successfully')}")
-                
-            except Exception as e:
-                print(f"❌ Blockchain logging failed: {e}")
-                blockchain_result = {"success": False, "error": str(e)}
-        else:
-            print("🚫 Invoice rejected - not submitted to blockchain")
+        try:
+            # Create comprehensive audit record with proper structure for blockchain
+            # Ensure invoice_data has 'id' field for blockchain integration
+            if 'id' not in invoice_data and 'invoice_id' in invoice_data:
+                invoice_data['id'] = invoice_data['invoice_id']
+            
+            audit_record = {
+                "invoice_data": invoice_data,  # Include the full invoice data
+                "status": status,
+                "explanation": explanation,
+                "validation_score": validation_details["overall_score"],
+                "timestamp": datetime.now().isoformat(),
+                "validation_stages": validation_details,
+                "issues_count": len(issues),
+                "agent_decision": "automated_approval" if status == "approved" else ("conditional_approval" if status == "approved_with_conditions" else "automated_rejection")
+            }
+            
+            # Submit to real ICP canister (all invoices for audit trail)
+            print(f"🔗 Submitting to ICP blockchain...")
+            blockchain_result = blockchain.log_invoice(audit_record)
+            print(f"🔗 Blockchain: {blockchain_result.get('message', 'Logged successfully')}")
+            
+        except Exception as e:
+            print(f"❌ Blockchain logging failed: {e}")
+            blockchain_result = {"success": False, "error": str(e)}
         
         # Prepare response
         result = {
@@ -123,8 +133,10 @@ def process_invoice(invoice_data):
             "processed_at": datetime.now().isoformat()
         }
         
+        # Always include blockchain result for transparency
         if blockchain_result:
             result["blockchain"] = blockchain_result
+            result["blockchain_result"] = blockchain_result  # For compatibility
         
         print("=" * 60)
         return result
@@ -212,7 +224,13 @@ def submit_invoice():
         if not invoice_data:
             return jsonify({"error": "No invoice data provided"}), 400
         
+        print(f"📥 Received invoice submission via HTTP API")
         result = process_invoice(invoice_data)
+        
+        # Include blockchain result in response
+        if 'blockchain' in result:
+            result['blockchain_result'] = result['blockchain']
+        
         return jsonify(result)
         
     except Exception as e:

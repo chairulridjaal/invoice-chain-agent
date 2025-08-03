@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-WSGI entry point for Render deployment
+WSGI entry point for cloud deployment
+(DigitalOcean, Google Cloud Run, AWS, Azure, etc.)
 """
 import os
 import sys

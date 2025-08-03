@@ -3,7 +3,10 @@ from dotenv import load_dotenv
 import os
 import traceback
 
-load_dotenv()
+# Load environment variables from the project root
+project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+env_path = os.path.join(project_root, '.env')
+load_dotenv(env_path)
 
 def explain_validation(invoice_data, issues, validation_details=None):
     """Generate explanation for invoice validation result with enhanced context"""
@@ -66,7 +69,7 @@ Keep the tone professional but accessible to finance teams. Focus on business im
 """
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="openai/gpt-4o-mini",  # OpenRouter model name
             messages=[{"role": "user", "content": prompt}],
             temperature=0.3
         )
