@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Chain Agent</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        .container {
+            text-align: center;
+            max-width: 800px;
+            padding: 2rem;
+        }
+        .title {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            font-weight: bold;
+        }
+        .subtitle {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+        .upload-area {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px dashed rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 3rem;
+            margin: 2rem 0;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        .upload-area:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+        .feature {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .api-link {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+        }
+        .api-link a {
+            color: #ffd700;
+            text-decoration: none;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🧾 Invoice Chain Agent</h1>
+        <p class="subtitle">Intelligent multi-agent system for invoice validation and blockchain logging</p>
+        
+        <div class="upload-area" onclick="uploadInvoice()">
+            <h2>📄 Upload Invoice</h2>
+            <p>Drag & drop your invoice here or click to upload</p>
+            <input type="file" id="fileInput" style="display: none;" accept=".pdf,.jpg,.jpeg,.png" onchange="processFile(this)">
+        </div>
+        
+        <div class="features">
+            <div class="feature">
+                <h3>🤖 Multi-Agent System</h3>
+                <p>Advanced validation pipeline</p>
+            </div>
+            <div class="feature">
+                <h3>🧠 AI-Powered OCR</h3>
+                <p>GPT-4 document processing</p>
+            </div>
+            <div class="feature">
+                <h3>⛓️ ICP Blockchain</h3>
+                <p>Immutable audit trail</p>
+            </div>
+            <div class="feature">
+                <h3>📊 Real-time Validation</h3>
+                <p>Instant fraud detection</p>
+            </div>
+        </div>
+        
+        <div class="api-link">
+            <p>🔗 API Endpoint: <a href="/api/health" target="_blank">/api/health</a></p>
+            <p>📋 Test API: <a href="/api/validate" target="_blank">/api/validate</a></p>
+        </div>
+    </div>
+    
+    <script>
+        function uploadInvoice() {
+            document.getElementById('fileInput').click();
+        }
+        
+        async function processFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                // Show loading
+                document.querySelector('.upload-area').innerHTML = '<h2>⏳ Processing...</h2><p>AI is analyzing your invoice...</p>';
+                
+                // Call API
+                const response = await fetch('/api/validate', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const result = await response.json();
+                
+                // Show results
+                document.querySelector('.upload-area').innerHTML = `
+                    <h2>✅ Validation Complete</h2>
+                    <p><strong>Status:</strong> ${result.status || 'processed'}</p>
+                    <p><strong>Score:</strong> ${result.score || 'calculated'}/100</p>
+                    <p><strong>Blockchain:</strong> ${result.blockchain ? '✅ Logged' : '⏳ Processing'}</p>
+                    <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #ffd700; color: #333; border: none; border-radius: 4px; cursor: pointer;">Upload Another</button>
+                `;
+            } catch (error) {
+                document.querySelector('.upload-area').innerHTML = `
+                    <h2>❌ Error</h2>
+                    <p>Processing failed: ${error.message}</p>
+                    <button onclick="location.reload()" style="margin-top: 1rem; padding: 0.5rem 1rem; background: #ffd700; color: #333; border: none; border-radius: 4px; cursor: pointer;">Try Again</button>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
