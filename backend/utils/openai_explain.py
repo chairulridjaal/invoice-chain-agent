@@ -8,12 +8,28 @@ project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 env_path = os.path.join(project_root, '.env')
 load_dotenv(env_path)
 
+def get_openai_client():
+    """Get OpenAI client instance with API key"""
+    api_key = os.getenv("OPENAI_API_KEY")
+    if not api_key:
+        return None
+    
+    try:
+        client = OpenAI(
+            api_key=api_key,
+            base_url=os.getenv("OPENAI_API_BASE")  # Optional: for OpenRouter or other providers
+        )
+        return client
+    except Exception as e:
+        print(f"Failed to create OpenAI client: {e}")
+        return None
+
 def explain_validation(invoice_data, issues, validation_details=None):
     """Generate explanation for invoice validation result with enhanced context"""
     
     # Check if OpenAI API key is available
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
+    client = get_openai_client()
+    if not client:
         # Enhanced fallback explanation
         if not issues:
             score = validation_details.get('overall_score', 100) if validation_details else 100
@@ -26,10 +42,6 @@ def explain_validation(invoice_data, issues, validation_details=None):
                 return f"⚠️ Invoice {invoice_data.get('invoice_id', 'Unknown')} REJECTED - Validation failed. Issues: {'; '.join(issues[:3])}{'...' if len(issues) > 3 else ''}. Please correct and resubmit."
     
     try:
-        client = OpenAI(
-            api_key=api_key,
-            base_url=os.getenv("OPENAI_API_BASE")
-        )
         
         # Create detailed context for AI
         validation_summary = ""

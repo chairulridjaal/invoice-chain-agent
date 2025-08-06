@@ -1,76 +1,34 @@
 from flask import Flask, request, jsonify
 import os
 import json
+import requests
 
 app = Flask(__name__)
+BACKEND_URL = os.getenv('BACKEND_URL', 'http://127.0.0.1:8001')
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    """Health check endpoint"""
-    return jsonify({
-        "status": "healthy",
-        "service": "Invoice Chain Agent",
-        "version": "1.0.0",
-        "environment": {
-            "canister_id": os.getenv('CANISTER_ID'),
-            "network": os.getenv('ICP_NETWORK'),
-            "openai_configured": bool(os.getenv('OPENAI_API_KEY'))
-        }
-    })
+    """Health check endpoint proxy"""
+    resp = requests.get(f"{BACKEND_URL}/health")
+    return (resp.content, resp.status_code, resp.headers.items())
 
 @app.route('/api/validate', methods=['POST'])
-def validate_invoice():
+def validate_invoice():  # proxy to backend
     """Validate invoice endpoint"""
     try:
-        # Handle file upload
         if request.files and 'file' in request.files:
-            file = request.files['file']
-            if not file or file.filename == '':
-                return jsonify({"error": "No file selected"}), 400
-            
-            return jsonify({
-                "status": "approved",
-                "score": 92,
-                "invoice_data": {
-                    "invoice_id": f"OCR-{file.filename[:8].upper()}",
-                    "vendor_name": "Extracted Vendor Co.",
-                    "amount": 1750.50,
-                    "date": "2025-08-03"
-                },
-                "blockchain": {
-                    "logged": True,
-                    "transaction_hash": f"ICP-FILE-{hash(file.filename) % 10**8:08x}",
-                    "canister_id": os.getenv('CANISTER_ID')
-                },
-                "message": "File processed successfully"
-            })
+            # forward file upload to backend
+            resp = requests.post(f"{BACKEND_URL}/upload", files={'file': request.files['file']})
         
         # Handle JSON data
         elif request.is_json:
-            data = request.get_json()
-            if not data:
-                return jsonify({"error": "No data provided"}), 400
-            
-            required_fields = ['invoice_id', 'vendor_name', 'amount', 'date']
-            missing = [f for f in required_fields if not data.get(f)]
-            if missing:
-                return jsonify({"error": f"Missing fields: {missing}"}), 400
-            
-            return jsonify({
-                "status": "approved",
-                "score": 88,
-                "invoice_data": data,
-                "blockchain": {
-                    "logged": True,
-                    "transaction_hash": f"ICP-MANUAL-{hash(str(data)) % 10**8:08x}",
-                    "canister_id": os.getenv('CANISTER_ID')
-                },
-                "message": "Manual validation successful"
-            })
+            resp = requests.post(f"{BACKEND_URL}/submit", json=request.get_json())
         
         else:
             return jsonify({"error": "Invalid request format"}), 400
-            
+        
+        return (resp.content, resp.status_code, resp.headers.items())
+        
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

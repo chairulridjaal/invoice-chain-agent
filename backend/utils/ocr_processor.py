@@ -62,10 +62,70 @@ def extract_text_from_image(image_file):
         traceback.print_exc()
         return None
 
-def extract_invoice_data_with_gpt(text):
-    """Use GPT-4 to intelligently extract invoice data from OCR text"""
+def redact_invoice_text(text: str) -> str:
+    """Redact sensitive information from invoice text before sending to GPT"""
+    if not text:
+        return text
+    
+    # Create a copy to work with
+    redacted = text
+    
+    # Redact email addresses
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    redacted = re.sub(email_pattern, '[REDACTED_EMAIL]', redacted)
+    
+    # Redact phone numbers (various formats)
+    phone_patterns = [
+        r'\b\d{3}[-.\s]?\d{3}[-.\s]?\d{4}\b',  # 555-555-5555, 555.555.5555, 555 555 5555
+        r'\(\d{3}\)[-.\s]?\d{3}[-.\s]?\d{4}',   # (555) 555-5555
+        r'\b\d{10}\b'                           # 5555555555
+    ]
+    for pattern in phone_patterns:
+        redacted = re.sub(pattern, '[REDACTED_PHONE]', redacted)
+    
+    # Redact tax IDs and SSNs (XX-XXXXXXX format)
+    tax_id_pattern = r'\b\d{2}-\d{7}\b'
+    redacted = re.sub(tax_id_pattern, '[REDACTED_TAX_ID]', redacted)
+    
+    # Redact EIN numbers (XX-XXXXXXX format)
+    ein_pattern = r'\b\d{2}-\d{7}\b'
+    redacted = re.sub(ein_pattern, '[REDACTED_EIN]', redacted)
+    
+    # Redact currency amounts (keep structure but hide values)
+    currency_patterns = [
+        r'\$\s*\d{1,3}(?:,\d{3})*(?:\.\d{2})?',  # $1,234.56
+        r'\b\d{1,3}(?:,\d{3})*\.\d{2}\b'         # 1,234.56 (without $)
+    ]
+    for pattern in currency_patterns:
+        redacted = re.sub(pattern, '[REDACTED_AMOUNT]', redacted)
+    
+    # Redact addresses (basic pattern for street addresses)
+    address_pattern = r'\b\d+\s+[A-Za-z\s]+(?:Street|St|Avenue|Ave|Road|Rd|Drive|Dr|Lane|Ln|Boulevard|Blvd)\b'
+    redacted = re.sub(address_pattern, '[REDACTED_ADDRESS]', redacted, flags=re.IGNORECASE)
+    
+    # Redact potential company names (words ending with Inc, Corp, LLC, Ltd, etc.)
+    company_patterns = [
+        r'\b[A-Za-z\s&]+\s+(?:Inc|Corp|Corporation|LLC|Ltd|Limited|Co)\b',
+        r'\b[A-Za-z\s&]+\s+(?:Company|Incorporated|Solutions|Services|Group|Associates)\b'
+    ]
+    for pattern in company_patterns:
+        redacted = re.sub(pattern, '[REDACTED_VENDOR]', redacted, flags=re.IGNORECASE)
+    
+    # Redact credit card numbers (basic pattern)
+    cc_pattern = r'\b\d{4}[-\s]?\d{4}[-\s]?\d{4}[-\s]?\d{4}\b'
+    redacted = re.sub(cc_pattern, '[REDACTED_CARD]', redacted)
+    
+    return redacted
+
+def extract_invoice_data_with_gpt(text, use_ai=True):
+    """Use GPT-4 to intelligently extract invoice data from OCR text with privacy protection"""
+    if not use_ai:
+        print("🚫 AI parsing disabled by user preference")
+        return None
+        
     try:
         print("🤖 Using GPT-4 for intelligent invoice data extraction...")
+        print("⚠️ AI parsing enabled. Only redacted invoice text is shared with GPT.")
         
         print(f"🔑 Debug - API Key exists: {bool(api_key)}")
         print(f"🔑 Debug - API Key prefix: {api_key[:10] if api_key else 'None'}...")
@@ -76,28 +136,34 @@ def extract_invoice_data_with_gpt(text):
             print("❌ Invalid API key detected. Please update your .env file with a real OpenAI API key.")
             return None
         
+        # Redact sensitive information before sending to GPT
+        redacted_text = redact_invoice_text(text)
+        print(f"🛡️ Text redacted for privacy. Original length: {len(text)}, Redacted length: {len(redacted_text)}")
+        
         prompt = f"""
 You are an expert at extracting invoice data from OCR text. Please analyze the following text and extract the key invoice information. The text might be messy from OCR, so use your intelligence to identify the correct values.
 
-OCR Text:
-{text}
+Note: Sensitive data has been redacted for privacy. Look for structural patterns and invoice-specific identifiers.
+
+OCR Text (Privacy Redacted):
+{redacted_text}
 
 Please extract and return ONLY a JSON object with these fields:
 - invoice_id: The actual invoice number/ID (like "GALT-009", "INV-2023-001", etc.) - NOT words like "invoice" or "bill"
-- vendor_name: The company/vendor name issuing the invoice
-- amount: The total amount as a number (without $ symbol)
+- vendor_name: Use "[REDACTED_VENDOR]" as placeholder if company name was redacted
+- amount: Use "[REDACTED_AMOUNT]" as placeholder if amount was redacted  
 - date: The invoice date in YYYY-MM-DD format
-- tax_id: Tax ID or EIN if present
+- tax_id: Use "[REDACTED_TAX_ID]" as placeholder if tax ID was redacted
 
 Important rules:
 1. For invoice_id: Look for actual ID numbers, not labels like "invoice" or "bill"
 2. Return empty string "" if a field cannot be found
-3. For amount: Only the numeric value, no currency symbols
+3. For redacted fields: Use the appropriate [REDACTED_*] placeholder
 4. For date: Convert to YYYY-MM-DD format
 5. Return ONLY the JSON object, no explanations
 
 Example format:
-{{"invoice_id": "GALT-009", "vendor_name": "Fountainhead A+E", "amount": "11812.50", "date": "2013-08-01", "tax_id": ""}}
+{{"invoice_id": "GALT-009", "vendor_name": "[REDACTED_VENDOR]", "amount": "[REDACTED_AMOUNT]", "date": "2013-08-01", "tax_id": "[REDACTED_TAX_ID]"}}
 """
         
         # Create a fresh client to ensure proper auth
@@ -113,7 +179,7 @@ Example format:
         response = fresh_client.chat.completions.create(
             model="openai/gpt-4o-mini",  # OpenRouter model name
             messages=[
-                {"role": "system", "content": "You are an expert invoice data extraction assistant. Extract data accurately and return only JSON."},
+                {"role": "system", "content": "You are an expert invoice data extraction assistant. Extract data accurately from privacy-redacted text and return only JSON."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.1,
@@ -136,7 +202,54 @@ Example format:
                 gpt_response = gpt_response[json_start:json_end].strip()
             
             extracted_data = json.loads(gpt_response)
-            print(f"✅ GPT-4 extracted data: {extracted_data}")
+            
+            # Post-process redacted placeholders back to original data from unredacted text
+            if extracted_data.get('vendor_name') == '[REDACTED_VENDOR]':
+                # Try to extract vendor from original text using regex
+                vendor_match = re.search(r'\b[A-Za-z\s&]+\s+(?:Inc|Corp|Corporation|LLC|Ltd|Limited|Co)\b', text, re.IGNORECASE)
+                if vendor_match:
+                    extracted_data['vendor_name'] = vendor_match.group().strip()
+                else:
+                    # Fallback to first meaningful line
+                    lines = text.split('\n')
+                    for line in lines[:5]:
+                        line = line.strip()
+                        if line and len(line) > 3 and not re.search(r'^\d+$', line):
+                            extracted_data['vendor_name'] = line
+                            break
+            
+            if extracted_data.get('amount') == '[REDACTED_AMOUNT]':
+                # Try to extract amount from original text
+                amount_patterns = [
+                    r'\$\s*([0-9,]+\.?\d*)',
+                    r'total\s*:?\s*\$?\s*([0-9,]+\.?\d*)',
+                    r'amount\s*:?\s*\$?\s*([0-9,]+\.?\d*)',
+                ]
+                for pattern in amount_patterns:
+                    match = re.search(pattern, text.lower(), re.IGNORECASE)
+                    if match:
+                        amount = match.group(1).replace(',', '').replace('$', '')
+                        try:
+                            float(amount)
+                            extracted_data['amount'] = amount
+                            break
+                        except ValueError:
+                            continue
+            
+            if extracted_data.get('tax_id') == '[REDACTED_TAX_ID]':
+                # Try to extract tax ID from original text
+                tax_patterns = [
+                    r'tax\s*id\s*:?\s*([0-9\-]+)',
+                    r'ein\s*:?\s*([0-9\-]+)',
+                    r'federal\s*id\s*:?\s*([0-9\-]+)'
+                ]
+                for pattern in tax_patterns:
+                    match = re.search(pattern, text.lower(), re.IGNORECASE)
+                    if match:
+                        extracted_data['tax_id'] = match.group(1)
+                        break
+            
+            print(f"✅ GPT-4 extracted data (with post-processing): {extracted_data}")
             return extracted_data
             
         except json.JSONDecodeError as e:
@@ -147,28 +260,32 @@ Example format:
     except Exception as e:
         print(f"❌ GPT-4 extraction error: {e}")
         return None
-def parse_invoice_from_text(text):
-    """Parse invoice data from OCR text using GPT-4 first, then regex fallback"""
-    print(f"🔍 Starting invoice data parsing...")
+def parse_invoice_from_text(text, use_ai=True):
+    """Parse invoice data from OCR text using GPT-4 first (with privacy protection), then regex fallback"""
+    print(f"🔍 Starting invoice data parsing... (AI enabled: {use_ai})")
     
-    # First try GPT-4 extraction
-    gpt_data = extract_invoice_data_with_gpt(text)
-    if gpt_data:
-        # Validate GPT data and fill defaults
-        invoice_data = {
-            'invoice_id': gpt_data.get('invoice_id', ''),
-            'vendor_name': gpt_data.get('vendor_name', ''),
-            'tax_id': gpt_data.get('tax_id', ''),
-            'amount': gpt_data.get('amount', ''),
-            'date': gpt_data.get('date', datetime.now().strftime('%Y-%m-%d'))
-        }
-        
-        print(f"🤖 GPT-4 successfully extracted invoice data!")
-        print(f"🎯 Final parsed data: {invoice_data}")
-        return invoice_data
+    # First try GPT-4 extraction if enabled
+    if use_ai:
+        gpt_data = extract_invoice_data_with_gpt(text, use_ai=use_ai)
+        if gpt_data:
+            # Validate GPT data and fill defaults
+            invoice_data = {
+                'invoice_id': gpt_data.get('invoice_id', ''),
+                'vendor_name': gpt_data.get('vendor_name', ''),
+                'tax_id': gpt_data.get('tax_id', ''),
+                'amount': gpt_data.get('amount', ''),
+                'date': gpt_data.get('date', datetime.now().strftime('%Y-%m-%d'))
+            }
+            
+            print(f"🤖 GPT-4 successfully extracted invoice data!")
+            print(f"🎯 Final parsed data: {invoice_data}")
+            return invoice_data
+        else:
+            print("⚠️ GPT-4 extraction failed or disabled, falling back to regex patterns...")
+    else:
+        print("🚫 AI parsing disabled by user preference, using regex patterns...")
     
     # Fallback to regex-based extraction
-    print("⚠️ GPT-4 extraction failed, falling back to regex patterns...")
     
     invoice_data = {
         'invoice_id': '',
@@ -390,10 +507,10 @@ def parse_invoice_from_text(text):
     print(f"🎯 Final parsed data: {invoice_data}")
     return invoice_data
 
-def process_uploaded_invoice(image_file):
-    """Complete pipeline: OCR + GPT-4 parsing"""
+def process_uploaded_invoice(image_file, use_ai=True):
+    """Complete pipeline: OCR + GPT-4 parsing with privacy protection"""
     try:
-        print(f"🚀 Starting complete invoice processing pipeline with GPT-4...")
+        print(f"🚀 Starting complete invoice processing pipeline (AI enabled: {use_ai})...")
         
         # Extract text from image
         text = extract_text_from_image(image_file)
@@ -406,8 +523,8 @@ def process_uploaded_invoice(image_file):
         
         print(f"📄 Full extracted text:\n{text}\n" + "="*60)
         
-        # Parse invoice data (GPT-4 first, regex fallback)
-        invoice_data = parse_invoice_from_text(text)
+        # Parse invoice data (GPT-4 first with privacy protection, regex fallback)
+        invoice_data = parse_invoice_from_text(text, use_ai=use_ai)
         
         print(f"🔍 Final parsed invoice data: {invoice_data}")
         
@@ -415,14 +532,16 @@ def process_uploaded_invoice(image_file):
         meaningful_fields = sum(1 for v in invoice_data.values() if v and str(v).strip())
         confidence = 'high' if meaningful_fields >= 4 else 'medium' if meaningful_fields >= 2 else 'low'
         
-        print(f"✅ Processing complete. Meaningful fields: {meaningful_fields}, Confidence: {confidence}")
+        extraction_method = 'GPT-4 + OCR (Privacy Protected)' if use_ai else 'Regex + OCR'
+        print(f"✅ Processing complete. Meaningful fields: {meaningful_fields}, Confidence: {confidence}, Method: {extraction_method}")
         
         return {
             'success': True,
             'extracted_text': text,
             'invoice_data': invoice_data,
             'confidence': confidence,
-            'extraction_method': 'GPT-4 + OCR'
+            'extraction_method': extraction_method,
+            'privacy_protected': use_ai
         }
         
     except Exception as e:

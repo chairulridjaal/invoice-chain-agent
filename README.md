@@ -1,336 +1,239 @@
 # 🧾 Invoice Chain Agent
 
-**Enterprise-grade AI-powered invoice validation system with ICP blockchain integration**
+**NextGen AI Agent for Invoice Validation & Blockchain Storage**  
+_Built for Fetch.ai & Internet Computer Hackathon 2025_
 
-A production-ready invoice processing platform featuring multi-layered validation, OCR document scanning, AI-powered explanations, and immutable blockchain audit trails on the Internet Computer Protocol (ICP).
+A comprehensive invoice processing system that combines AI-powered validation, fraud detection, and blockchain storage using Fetch.ai uAgents and Internet Computer Protocol (ICP).
 
-## ✨ Key Features
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![Platform](https://img.shields.io/badge/platform-ICP%20%7C%20Fetch.ai-green.svg)
+![Status](https://img.shields.io/badge/status-Active%20Development-orange.svg)
 
-### 🧠 **AI-Powered Validation Pipeline**
-- **4-Stage Validation**: Basic field validation, ERP cross-checks, contextual logic, and fraud detection
-- **100-Point Scoring System**: Comprehensive scoring across all validation stages
-- **OpenAI GPT-4o-mini Integration**: Intelligent explanations for every validation decision
-- **Automated Decision Making**: Approved, conditional approval, or rejection with detailed reasoning
+## 🚀 **Features**
 
-### 📄 **OCR Document Processing** 
-- **Tesseract OCR Integration**: Extract invoice data from images and PDFs
-- **Smart Field Recognition**: Automatically identify vendor, amount, date, tax ID, and line items
-- **Multi-format Support**: PNG, JPG, PDF, TIFF, and more
-- **Confidence Scoring**: OCR accuracy assessment and validation
+### **🤖 AI-Powered Processing**
 
-### ⛓️ **ICP Blockchain Integration**
-- **Real Canister Deployment**: Working ICP canister with confirmed storage
-- **Immutable Audit Trail**: Every invoice logged to blockchain with complete validation history
-- **Verified Storage**: Real-time verification that invoices are actually stored on-chain
-- **Local & Testnet Support**: Seamless development to production workflow
+- **GPT Integration**: Intelligent invoice analysis with OpenRouter/OpenAI
+- **Multi-Layer Validation**: Basic, ERP cross-checks, contextual logic, fraud detection
+- **OCR Processing**: Extract data from invoice images and PDFs
+- **Risk Assessment**: Advanced fraud detection with confidence scoring
 
-### 🌐 **Production Web Interface**
-- **Document Upload**: Drag-and-drop interface for invoice scanning
-- **Real-time Processing**: Live validation pipeline with progress indicators
-- **Edit & Review**: Edit OCR-extracted data before submission
-- **Blockchain Confirmation**: Visual confirmation of blockchain storage
+### **⛓️ Blockchain Integration**
 
-### 🔧 **Enterprise Integration**
-- **ERP System Simulation**: Vendor approval, PO matching, credit limit checks
-- **RESTful API**: Complete HTTP API for system integration
-- **Multi-Agent Architecture**: Scalable uAgent-based processing
-- **Production WSGI**: Ready for cloud deployment with Gunicorn
+- **ICP Canister Storage**: Immutable invoice records on Internet Computer
+- **Privacy-First**: Only metadata stored on-chain, sensitive data encrypted
+- **Real-time Verification**: Live blockchain confirmation with transaction hashes
+- **Audit Trail**: Complete processing history with timestamps
 
-## 🏗️ System Architecture
+### **🎯 Fetch.ai uAgent Protocol**
+
+- **Chat Interface**: Natural language queries about invoice status
+- **Agent Discovery**: Registered in Fetch.ai Agentverse with published manifest
+- **Inter-Agent Communication**: Standard uAgent Protocol message handling
+- **Privacy Protection**: GPT responses only include non-sensitive metadata
+
+### **💻 Modern Web Interface**
+
+- **React Frontend**: Responsive UI with real-time processing stages
+- **File Upload**: Support for PDF, PNG, JPG invoice documents
+- **Manual Entry**: Form-based invoice submission with validation
+- **Live Dashboard**: Processing status, validation results, blockchain confirmation
+
+## 🏗️ **Architecture**
 
 ```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Web Frontend  │───▶│  Flask Backend   │───▶│  ICP Canister   │
-│   (Upload UI)   │    │  + uAgent Core   │    │  (Blockchain)   │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-                                │
-                                ▼
-                       ┌──────────────────┐
-                       │ Validation Pipeline │
-                       │ • Basic Fields     │
-                       │ • ERP Checks      │
-                       │ • Fraud Detection │
-                       │ • AI Explanation  │
-                       └──────────────────┘
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   React Frontend│    │   Flask Backend │    │  ICP Canister   │
+│   (Port 3000)   │◄──►│   (Port 8001)   │◄──►│  Blockchain DB  │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+                              │
+                       ┌─────────────────┐
+                       │ Fetch.ai uAgent │
+                       │   (Port 8000)   │
+                       │  Chat Protocol  │
+                       └─────────────────┘
 ```
 
-## 🚀 Quick Start
+## 🛠️ **Tech Stack**
 
-### Prerequisites
-- **Python 3.10+**
-- **Node.js 18+** (for frontend)
-- **dfx CLI** (for ICP development)
-- **OpenRouter API Key** (for AI explanations)
+### **Frontend**
 
-### 1. Install dfx CLI
+- **React 18** with TypeScript
+- **Vite** for fast development and builds
+- **Tailwind CSS** for styling
+- **Lucide React** for icons
+- **React Router** for navigation
+
+### **Backend**
+
+- **Python 3.11+** with Flask
+- **Fetch.ai uAgents** for agent protocol
+- **OpenAI/OpenRouter** for GPT integration
+- **Subprocess** for ICP dfx commands
+- **CORS** enabled for cross-origin requests
+
+### **Blockchain**
+
+- **Internet Computer Protocol (ICP)**
+- **Motoko** smart contract language
+- **DFX SDK** for canister management
+- **Local/Testnet/Mainnet** deployment support
+
+### **AI & ML**
+
+- **GPT-3.5-turbo** via OpenRouter
+- **Custom validation logic** with scoring algorithms
+- **Fraud detection models** with risk assessment
+- **OCR processing** for document extraction
+
+## 📋 **Prerequisites**
+
+- **Node.js 18+** and npm
+- **Python 3.11+** with pip
+- **DFX SDK** for ICP development
+- **WSL2** (Windows) or **native shell** (macOS/Linux)
+- **OpenRouter API key** for GPT integration
+
+## 🔧 **Development**
+
+### **Project Structure**
+
+```
+invoice-chain-agent/
+├── frontend/           # React application
+├── backend/            # Flask API + uAgent
+├── canister/           # ICP Motoko smart contract
+├── blockchain/         # Blockchain integration utilities
+├── docs/              # Documentation
+├── .env               # Environment variables
+└── README.md          # This file
+```
+
+### **Environment Variables**
 
 ```bash
-# Install dfx for ICP development
-sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
-```
+# Required for GPT integration
+OPENAI_API_KEY=your_api_key
+OPENAI_API_BASE=https://openrouter.ai/api/v1
 
-### 2. Clone and Setup Environment
-
-```bash
-git clone https://github.com/chairulridjaal/invoice-chain-agent.git
-cd invoice-chain-agent
-
-# Create Python virtual environment
-python -m venv venv
-
-# Windows
-venv\Scripts\activate
-
-# macOS/Linux
-source venv/bin/activate
-
-# Install Python dependencies
-cd backend
-pip install uagents flask flask-cors requests python-dotenv pillow pytesseract openai
-```
-
-### 3. Setup Environment Variables
-
-Create `.env` file in project root:
-
-```env
-# OpenRouter API Key for AI explanations
-OPENAI_API_KEY=sk-or-v1-your-openrouter-api-key-here
-OPENAI_BASE_URL=https://openrouter.ai/api/v1
-
-# ICP Canister Configuration
-CANISTER_ID=uxrrr-q7777-77774-qaaaq-cai
+# ICP Configuration
+CANISTER_ID=your_canister_id
 ICP_NETWORK=local
 DFX_PATH=dfx
 
 # Server Configuration
-HOST=127.0.0.1
 PORT=8001
-AGENT_PORT=8000
+HOST=0.0.0.0
 ```
 
-### 4. Setup ICP Canister
+## 🧪 **Testing**
+
+### **API Endpoints**
+
+- **Health Check:** `GET http://localhost:8001/health`
+- **Submit Invoice:** `POST http://localhost:8001/submit`
+- **Upload File:** `POST http://localhost:8001/upload`
+- **Get Invoices:** `GET http://localhost:8001/invoices`
+- **Chat Agent:** `POST http://localhost:8001/chat`
+
+### **Canister Methods**
 
 ```bash
-# Start local ICP replica
-cd canister
-dfx start --background
+# Store invoice
+dfx canister call invoice_storage storeInvoice '("INV-001", "Vendor", "TAX123", 1000.0, "2025-08-06", "approved", "notes", null, 85, 15, "LOW")'
 
-# Deploy the canister
-dfx deploy
+# Get all invoices
+dfx canister call invoice_storage getAllInvoices '()'
+
+# Get specific invoice
+dfx canister call invoice_storage getInvoice '("INV-001")'
 ```
 
-### 5. Start the Backend
+## 🌐 **Deployment**
+
+### **Frontend (Vercel/Netlify)**
 
 ```bash
-# Start the Flask backend with uAgent integration
-cd backend
-python app.py
+cd frontend
+npm run build
+# Deploy dist/ folder
 ```
 
-The system will be available at:
-- **Web Interface**: http://127.0.0.1:8001/
-- **API Endpoints**: http://127.0.0.1:8001/submit, /upload, /health
-- **uAgent Protocol**: http://127.0.0.1:8000
+### **Backend (Railway/Heroku)**
 
-## 🌐 API Endpoints
-
-| Endpoint | Method | Description | Example |
-|----------|--------|-------------|---------|
-| `/` | GET | Web interface for document upload | - |
-| `/upload` | POST | OCR processing of invoice images | Form data with file |
-| `/submit` | POST | Submit invoice for validation | JSON invoice data |
-| `/health` | GET | System health and capabilities | - |
-| `/stats` | GET | System statistics | - |
-| `/invoice/<id>` | GET | Retrieve invoice from blockchain | - |
-| `/audit/<id>` | GET | Get audit logs for invoice | - |
-
-### Example API Usage
-
-#### Upload and Process Invoice Image
 ```bash
-curl -X POST http://localhost:8001/upload \
-  -F "file=@invoice.png"
+# Procfile included for platform deployment
+web: gunicorn --bind 0.0.0.0:$PORT backend.app:app
 ```
 
-#### Submit Invoice for Validation
+### **ICP Mainnet**
+
 ```bash
-curl -X POST http://localhost:8001/submit \
-  -H "Content-Type: application/json" \
-  -d '{
-    "invoice_id": "PO-2025-001", 
-    "vendor_name": "TechSupply Corp",
-    "tax_id": "12-3456789",
-    "amount": 15000.00,
-    "date": "2025-08-03"
-  }'
+dfx deploy --network=ic --with-cycles=1000000000000
 ```
 
-## 📋 Validation Pipeline
+## 🤝 **Fetch.ai uAgent Integration**
 
-The system implements a comprehensive 4-stage validation process:
+### **Chat Protocol**
 
-### Stage 1: Basic Field Validation (25 points)
-- Required field presence
-- Data type validation
-- Format verification
-- Range checks
+The system implements official Fetch.ai uAgent Chat Protocol:
 
-### Stage 2: ERP Cross-checks (30 points)
-- Vendor approval status
-- Purchase order matching
-- Credit limit verification
-- Blacklist checking
+```python
+# Message Models
+class InvoiceQueryMessage(Model):
+    text: str
+    query_type: str = "general"
+    invoice_id: Optional[str] = None
 
-### Stage 3: Contextual Logic (25 points)
-- Business rule validation
-- Date reasonableness
-- Amount verification
-- Line item consistency
-
-### Stage 4: Fraud Detection (20 points)
-- Duplicate detection
-- Pattern analysis
-- Risk assessment
-- Anomaly detection
-
-**Total Score**: 100 points with automated decision thresholds
-
-## 🎯 Live Demo
-
-### Web Interface Features
-1. **Document Upload**: Drag and drop invoice images/PDFs
-2. **OCR Processing**: Real-time text extraction with confidence scores
-3. **Data Review**: Edit and verify extracted information
-4. **Validation Pipeline**: Watch the 4-stage validation process
-5. **Blockchain Confirmation**: See real ICP blockchain storage confirmation
-
-### Sample Test Data
-The system includes realistic test data in `data/erp_mock.json`:
-- Pre-approved vendors with credit limits
-- Sample purchase orders
-- Blacklisted entities
-- Various test scenarios
-
-## ☁️ Production Deployment
-
-The application is production-ready with multiple deployment options:
-
-### Recommended: DigitalOcean App Platform
-```yaml
-# .do/app.yaml
-name: invoice-chain-agent
-services:
-  - name: backend
-    run_command: cd backend && gunicorn wsgi:application --bind 0.0.0.0:$PORT
-    environment_slug: python
-    envs:
-      - key: OPENAI_API_KEY
-        value: your_openrouter_api_key
-      - key: CANISTER_ID  
-        value: your_production_canister_id
-      - key: ICP_NETWORK
-        value: ic
+class InvoiceResponseMessage(Model):
+    text: str
+    success: bool = True
+    metadata: Optional[Dict] = None
 ```
 
-**Other Platforms**: AWS Elastic Beanstalk, Google Cloud Run, Azure Container Instances
+### **Agent Discovery**
 
-📖 **[View Complete Deployment Guide](CLOUD_DEPLOYMENT.md)**
+- **Published Manifest:** Registered in Fetch.ai Almanac
+- **Agentverse Ready:** Discoverable by other agents
+- **Standard Protocol:** Inter-agent communication support
 
-## 🔧 Development
+## 🔒 **Privacy & Security**
 
-### Project Structure
-```
-invoice-chain-agent/
-├── backend/                    # Python Flask API + uAgents
-│   ├── app.py                 # Main application entry
-│   ├── wsgi.py                # Production WSGI entry
-│   ├── agents/
-│   │   └── invoice_agent.py   # Core processing agent
-│   ├── blockchain/
-│   │   └── integration.py     # ICP blockchain integration
-│   ├── utils/
-│   │   ├── invoice_validator.py  # Validation logic
-│   │   ├── ocr_processor.py      # OCR functionality
-│   │   └── openai_explain.py     # AI explanations
-│   └── requirements.txt
-├── canister/                   # ICP Smart Contract
-│   ├── src/
-│   │   └── invoice_logger.mo  # Motoko canister code
-│   └── dfx.json
-├── frontend/                   # React web interface (built)
-├── static/                     # Compiled frontend assets
-├── data/
-│   └── erp_mock.json          # Test ERP data
-└── docs/                       # Documentation
-```
+- **🔐 Encrypted Storage:** Sensitive data encrypted before blockchain storage
+- **🎭 Metadata Only:** GPT integration only receives non-sensitive metadata
+- **🛡️ Fraud Detection:** Advanced risk scoring with confidence levels
+- **📝 Audit Logs:** Complete processing history with timestamps
+- **🔑 API Security:** Environment-based configuration management
 
-### Key Technologies
-- **Backend**: Python 3.13, Flask, uAgents, Tesseract OCR
-- **AI**: OpenRouter API (GPT-4o-mini)
-- **Blockchain**: Internet Computer Protocol (ICP) with Motoko
-- **Frontend**: React, Vite, modern JavaScript
-- **Deployment**: Gunicorn WSGI, Docker ready
+## 📊 **Validation Pipeline**
 
-## 🧪 Testing
+1. **Basic Validation (25 pts):** Format, required fields, data types
+2. **ERP Cross-checks (30 pts):** Vendor verification, duplicate detection
+3. **Contextual Logic (25 pts):** Business rules, amount validation
+4. **Fraud Detection (20 pts):** Risk patterns, anomaly detection
 
-### Test the Complete Pipeline
-```bash
-# 1. Start the backend
-cd backend && python app.py
+**Total Score:** 100 points → **Status:** Approved/Conditional/Rejected
 
-# 2. Test via web interface
-# Open http://127.0.0.1:8001 and upload an invoice image
+## 🛣️ **Roadmap**
 
-# 3. Test via API
-curl -X POST http://localhost:8001/submit \
-  -H "Content-Type: application/json" \
-  -d '{"invoice_id": "TEST-001", "vendor_name": "Test Corp", "amount": 1000}'
+- [ ] **Mainnet Deployment:** ICP production canister
+- [ ] **Multi-Agent System:** Specialized validation agents
+- [ ] **Enterprise Features:** Batch processing, API webhooks
+- [ ] **Mobile App:** React Native companion
+- [ ] **Advanced Analytics:** Dashboard with insights
 
-# 4. Verify blockchain storage
-cd canister
-dfx canister call invoice_logger getAllInvoices "()"
-```
-
-### Sample Test Results
-```
-✅ Invoice PO-2025-001 CONFIRMED stored on ICP blockchain
-📊 Validation Score: 100/100
-🎯 Decision: APPROVED
-⛓️ Blockchain: Real canister storage verified
-```
-
-## 📊 System Capabilities
-
-- **Processing Speed**: ~2-3 seconds per invoice
-- **OCR Accuracy**: 95%+ on clear documents  
-- **Validation Stages**: 4 comprehensive checks
-- **Blockchain Storage**: 100% verified on ICP
-- **AI Explanations**: Detailed reasoning for every decision
-- **API Throughput**: Hundreds of requests per minute
-- **Uptime**: Production-ready with health monitoring
-
-## 🤝 Contributing
+## 🤝 **Contributing**
 
 1. Fork the repository
-2. Create a feature branch: `git checkout -b feature-name`
-3. Test with local ICP canister
-4. Ensure all validation stages pass
-5. Submit a pull request
+2. Create feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit changes (`git commit -m 'Add AmazingFeature'`)
+4. Push to branch (`git push origin feature/AmazingFeature`)
+5. Open Pull Request
 
-## 📞 Support
+## 📄 **License**
 
-- **Documentation**: Check `/docs` folder for detailed guides
-- **API Reference**: Visit `/health` endpoint for system capabilities
-- **Blockchain Explorer**: Verify transactions on ICP dashboard
-- **Issues**: GitHub Issues for bug reports and feature requests
-
-## 📝 License
-
-MIT License - see LICENSE file for details
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-**🎯 Ready for Production**: This is a fully functional, enterprise-grade invoice processing system with real blockchain integration, AI-powered validation, and production deployment capabilities.
-
-**🔗 Live Blockchain**: All invoices are stored on the actual Internet Computer blockchain with verified persistence and immutable audit trails.
+**Built with ❤️ for the future of AI-powered business automation**

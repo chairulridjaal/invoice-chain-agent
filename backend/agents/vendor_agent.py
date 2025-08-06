@@ -79,7 +79,7 @@ async def send_invoices(ctx: Context):
             except Exception as http_error:
                 ctx.logger.error(f"❌ HTTP fallback failed: {http_error}")
         
-        await asyncio.sleep(2)  # Wait between invoices
+        await asyncio.sleep(2)
 
 @vendor_protocol.on_message(model=Explanation)
 async def handle_response(ctx: Context, sender: str, msg: Explanation):

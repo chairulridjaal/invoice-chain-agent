@@ -104,6 +104,7 @@ def process_invoice(invoice_data):
             
             audit_record = {
                 "invoice_data": invoice_data,  # Include the full invoice data
+                "validation_result": {"score": validation_details["overall_score"]},  # Add validation_result for blockchain
                 "status": status,
                 "explanation": explanation,
                 "validation_score": validation_details["overall_score"],
@@ -330,11 +331,377 @@ def health_check():
                 "upload": "/upload",
                 "get_invoice": "/invoice/<id>",
                 "audit_logs": "/audit/<id>",
-                "stats": "/stats"
+                "stats": "/stats",
+                "chat_agent": "http://127.0.0.1:8002/submit"
+            },
+            "chat_integration": {
+                "natural_language_queries": True,
+                "privacy_protected": True,
+                "supported_commands": [
+                    "check invoice [ID]",
+                    "fraud risk for [ID]", 
+                    "show latest invoices",
+                    "system statistics"
+                ]
             }
         })
     except Exception as e:
         return jsonify({"error": str(e), "status": "unhealthy"}), 500
+
+@app.route('/chat', methods=['POST'])
+def chat_with_agent():
+    """Chat endpoint for natural language queries with GPT integration and privacy protection"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '').strip()
+        
+        if not message:
+            return jsonify({"error": "Message is required"}), 400
+        
+        message_lower = message.lower()
+        response = ""
+        
+        # Extract invoice ID from message using regex
+        import re
+        invoice_id_pattern = r'(?:invoice\s+)?([A-Z]{2,4}[-_]?\d{3,4}[-_]?\d{3,4}|[A-Z]{3,6}[-_]?\d{3,6})'
+        invoice_match = re.search(invoice_id_pattern, message, re.IGNORECASE)
+        
+        try:
+            # Initialize blockchain integration for real data queries
+            blockchain = BlockchainIntegration()
+            context_data = {}
+            
+            # Gather context data for GPT
+            if invoice_match:
+                invoice_id = invoice_match.group(1).upper()
+                print(f"🔍 Chat: Looking up invoice {invoice_id}")
+                
+                # Get specific invoice
+                invoice_result = blockchain.get_invoice_by_id(invoice_id)
+                
+                if invoice_result and invoice_result.get("success"):
+                    invoice = invoice_result["invoice"]
+                    
+                    # Create privacy-safe context for GPT
+                    context_data = {
+                        "type": "single_invoice",
+                        "invoice_id": invoice.get('id', ''),
+                        "status": invoice.get('status', 'unknown'),
+                        "validation_score": invoice.get('validationScore', 0),
+                        "risk_score": invoice.get('riskScore', 0),
+                        "fraud_risk": invoice.get('fraudRisk', 'unknown'),
+                        "amount": invoice.get('amount', 0),
+                        "vendor_name": invoice.get('vendor_name', ''),  # Safe to include vendor name
+                        "date": invoice.get('date', ''),
+                        "timestamp": invoice.get('timestamp', 0)
+                    }
+                else:
+                    context_data = {
+                        "type": "invoice_not_found",
+                        "requested_id": invoice_id
+                    }
+            
+            # System stats queries
+            elif 'statistics' in message_lower or 'stats' in message_lower or 'total' in message_lower or 'count' in message_lower:
+                all_invoices_result = blockchain.get_all_invoices()
+                
+                if all_invoices_result and all_invoices_result.get("success"):
+                    invoices = all_invoices_result["invoices"]
+                    
+                    # Calculate privacy-safe aggregate stats
+                    approved_count = sum(1 for inv in invoices if inv.get('status', '').lower() == 'approved')
+                    high_risk_count = sum(1 for inv in invoices if inv.get('fraudRisk', '') == 'HIGH')
+                    avg_validation_score = sum(inv.get('validationScore', 0) for inv in invoices) / len(invoices) if invoices else 0
+                    
+                    context_data = {
+                        "type": "system_stats",
+                        "total_invoices": len(invoices),
+                        "approved_count": approved_count,
+                        "high_risk_count": high_risk_count,
+                        "avg_validation_score": round(avg_validation_score, 1),
+                        "approval_rate": round(approved_count/len(invoices)*100, 1) if invoices else 0,
+                        "high_risk_rate": round(high_risk_count/len(invoices)*100, 1) if invoices else 0
+                    }
+            
+            # Recent invoices query
+            elif 'recent' in message_lower or 'latest' in message_lower or 'last' in message_lower:
+                all_invoices_result = blockchain.get_all_invoices()
+                
+                if all_invoices_result and all_invoices_result.get("success"):
+                    invoices = all_invoices_result["invoices"]
+                    # Sort by timestamp (most recent first)
+                    recent_invoices = sorted(invoices, key=lambda x: x.get('timestamp', 0), reverse=True)[:5]
+                    
+                    # Create privacy-safe summary
+                    recent_summary = []
+                    for inv in recent_invoices:
+                        recent_summary.append({
+                            "id": inv.get('id', ''),
+                            "status": inv.get('status', ''),
+                            "fraud_risk": inv.get('fraudRisk', ''),
+                            "validation_score": inv.get('validationScore', 0),
+                            "vendor_name": inv.get('vendor_name', ''),  # Safe to include
+                            "amount": inv.get('amount', 0)
+                        })
+                    
+                    context_data = {
+                        "type": "recent_invoices",
+                        "invoices": recent_summary
+                    }
+            
+            # Use GPT to generate intelligent response
+            if context_data:
+                response = generate_gpt_response(message, context_data)
+            else:
+                # For general queries, try to get system overview and use GPT
+                print("🧠 General query detected, gathering system context for GPT")
+                try:
+                    all_invoices_result = blockchain.get_all_invoices()
+                    
+                    if all_invoices_result and all_invoices_result.get("success"):
+                        invoices = all_invoices_result["invoices"]
+                        
+                        # Calculate comprehensive system stats
+                        approved_count = sum(1 for inv in invoices if inv.get('status', '').lower() == 'approved')
+                        rejected_count = sum(1 for inv in invoices if inv.get('status', '').lower() == 'rejected')
+                        high_risk_count = sum(1 for inv in invoices if inv.get('fraudRisk', '') == 'HIGH')
+                        medium_risk_count = sum(1 for inv in invoices if inv.get('fraudRisk', '') == 'MEDIUM')
+                        avg_validation_score = sum(inv.get('validationScore', 0) for inv in invoices) / len(invoices) if invoices else 0
+                        
+                        # Find problematic invoices for "worry about" queries
+                        problematic_invoices = [
+                            inv for inv in invoices 
+                            if inv.get('fraudRisk', '') in ['HIGH', 'MEDIUM'] or 
+                               inv.get('validationScore', 0) < 70 or
+                               inv.get('status', '').lower() == 'rejected'
+                        ]
+                        
+                        context_data = {
+                            "type": "general_system_query",
+                            "total_invoices": len(invoices),
+                            "approved_count": approved_count,
+                            "rejected_count": rejected_count,
+                            "high_risk_count": high_risk_count,
+                            "medium_risk_count": medium_risk_count,
+                            "problematic_count": len(problematic_invoices),
+                            "avg_validation_score": round(avg_validation_score, 1),
+                            "approval_rate": round(approved_count/len(invoices)*100, 1) if invoices else 0,
+                            "high_risk_rate": round(high_risk_count/len(invoices)*100, 1) if invoices else 0,
+                            "user_query_intent": message_lower  # Help GPT understand what user is asking about
+                        }
+                        
+                        response = generate_gpt_response(message, context_data)
+                    else:
+                        response = generate_gpt_response(message, {"type": "no_data", "user_query_intent": message_lower})
+                except Exception as e:
+                    print(f"Error gathering system context: {e}")
+                    response = generate_basic_response(message_lower)
+                    
+        except Exception as blockchain_error:
+            print(f"❌ Blockchain query error: {blockchain_error}")
+            # Generate helpful response even if blockchain fails
+            response = generate_basic_response(message_lower)
+        
+        return jsonify({
+            "data": {
+                "reply": response
+            },
+            "success": True,
+            "timestamp": datetime.now().isoformat(),
+            "query": message[:100] + "..." if len(message) > 100 else message
+        })
+        
+    except Exception as e:
+        print(f"❌ Chat endpoint error: {e}")
+        return jsonify({
+            "data": {
+                "reply": f"Sorry, I encountered an error processing your request: {str(e)}. Please try again."
+            },
+            "success": False
+        }), 400
+
+def generate_gpt_response(user_message: str, context_data: dict) -> str:
+    """Generate intelligent response using GPT with privacy-protected data"""
+    try:
+        from utils.openai_explain import get_openai_client
+        
+        client = get_openai_client()
+        if not client:
+            return generate_fallback_response(user_message, context_data)
+        
+        # Create system prompt for invoice assistant
+        system_prompt = """You are an intelligent Invoice Chain Agent assistant. You help users understand their invoice validation system, analyze risks, and provide insights.
+
+Key capabilities:
+- Analyze invoice validation status and risk scores
+- Explain fraud detection results
+- Provide system statistics and trends
+- Answer questions about invoice processing
+
+Guidelines:
+- Be conversational and helpful
+- Use emojis appropriately (📊 for stats, ✅ for approved, ⚠️ for risks, etc.)
+- Keep responses concise but informative
+- Focus on the specific data provided in context
+- Never make up data - only use the provided context
+- Maintain privacy - sensitive details are already filtered out"""
+
+        # Create context-aware user prompt
+        if context_data["type"] == "single_invoice":
+            if "invoice_not_found" in context_data.get("type", ""):
+                context_prompt = f"The user asked about invoice {context_data['requested_id']} but it was not found in the system."
+            else:
+                inv = context_data
+                context_prompt = f"""The user is asking about invoice {inv['invoice_id']}:
+- Status: {inv['status']}
+- Validation Score: {inv['validation_score']}/100
+- Risk Score: {inv['risk_score']}/100  
+- Fraud Risk Level: {inv['fraud_risk']}
+- Vendor: {inv['vendor_name']}
+- Amount: ${inv['amount']:,.2f}
+- Date: {inv['date']}"""
+
+        elif context_data["type"] == "system_stats":
+            stats = context_data
+            context_prompt = f"""System statistics:
+- Total Invoices: {stats['total_invoices']}
+- Approved: {stats['approved_count']} ({stats['approval_rate']}%)
+- High Risk: {stats['high_risk_count']} ({stats['high_risk_rate']}%)
+- Average Validation Score: {stats['avg_validation_score']}/100"""
+
+        elif context_data["type"] == "recent_invoices":
+            recent = context_data['invoices']
+            context_prompt = f"Recent invoices ({len(recent)} most recent):\n"
+            for i, inv in enumerate(recent, 1):
+                context_prompt += f"{i}. {inv['id']} - {inv['vendor_name']} (${inv['amount']:,.2f}) - {inv['status']} - {inv['fraud_risk']} risk\n"
+
+        elif context_data["type"] == "general_system_query":
+            stats = context_data
+            context_prompt = f"""System overview for general inquiry:
+- Total Invoices: {stats['total_invoices']}
+- Approved: {stats['approved_count']} ({stats['approval_rate']}%)
+- Rejected: {stats['rejected_count']}
+- High Risk: {stats['high_risk_count']} ({stats['high_risk_rate']}%)
+- Medium Risk: {stats['medium_risk_count']}
+- Problematic Invoices: {stats['problematic_count']} (requiring attention)
+- Average Validation Score: {stats['avg_validation_score']}/100
+
+User's original question intent: "{stats['user_query_intent']}" """
+
+        elif context_data["type"] == "no_data":
+            context_prompt = f"No invoice data available yet in the system. User asked: \"{context_data['user_query_intent']}\""
+
+        else:
+            context_prompt = "General invoice system inquiry."
+
+        # Generate response
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": f"Context: {context_prompt}\n\nUser question: {user_message}"}
+        ]
+
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=messages,
+            max_tokens=300,
+            temperature=0.7
+        )
+
+        gpt_response = response.choices[0].message.content.strip()
+        print(f"🤖 GPT Response generated: {len(gpt_response)} chars")
+        return gpt_response
+
+    except Exception as e:
+        print(f"❌ GPT generation failed: {e}")
+        return generate_fallback_response(user_message, context_data)
+
+def generate_fallback_response(user_message: str, context_data: dict) -> str:
+    """Generate structured response when GPT is unavailable"""
+    if context_data["type"] == "single_invoice":
+        inv = context_data
+        if inv['status'] == 'approved':
+            return f"✅ **Invoice {inv['invoice_id']} Status:** APPROVED\n\n• Vendor: {inv['vendor_name']}\n• Amount: ${inv['amount']:,.2f}\n• Risk Level: {inv['fraud_risk']}\n• Validation Score: {inv['validation_score']}/100"
+        else:
+            return f"⚠️ **Invoice {inv['invoice_id']} Status:** {inv['status'].upper()}\n\n• Vendor: {inv['vendor_name']}\n• Amount: ${inv['amount']:,.2f}\n• Risk Level: {inv['fraud_risk']}\n• Validation Score: {inv['validation_score']}/100"
+    
+    elif context_data["type"] == "system_stats":
+        stats = context_data
+        return f"📊 **System Statistics:**\n\n• Total Invoices: {stats['total_invoices']}\n• Approved: {stats['approved_count']} ({stats['approval_rate']}%)\n• High Risk: {stats['high_risk_count']} ({stats['high_risk_rate']}%)\n• Average Score: {stats['avg_validation_score']}/100"
+    
+    elif context_data["type"] == "recent_invoices":
+        response = "📋 **Recent Invoices:**\n\n"
+        for i, inv in enumerate(context_data['invoices'], 1):
+            status_emoji = "✅" if inv['status'] == 'approved' else "⚠️"
+            response += f"{i}. {status_emoji} {inv['id']} - {inv['vendor_name']} (${inv['amount']:,.2f})\n"
+        return response
+    
+    return generate_basic_response(user_message.lower())
+
+def generate_basic_response(message_lower: str) -> str:
+    """Generate basic response patterns"""
+    if 'hello' in message_lower or 'hi' in message_lower:
+        return "👋 Hello! I'm your Invoice Chain Agent. Ask me about specific invoices, system statistics, or recent activity!"
+    elif 'help' in message_lower:
+        return "🤖 I can help you with:\n• **Invoice Status**: 'What's the status of invoice INV-001?'\n• **Risk Analysis**: 'What's the risk of invoice ABC-123?'\n• **System Stats**: 'Show me statistics'\n• **Recent Activity**: 'Show recent invoices'"
+    elif 'fraud' in message_lower:
+        return "🔍 **Fraud Detection System:**\nOur AI uses multi-layer analysis:\n• OCR validation\n• Vendor verification\n• Pattern recognition\n• Risk scoring algorithms\n\nAsk about specific invoices for detailed analysis!"
+    else:
+        return f"🤖 I can help you with invoice queries! Try asking:\n• 'Status of invoice INV-001'\n• 'Show system statistics'\n• 'What are recent invoices?'\n\nFor specific invoices, use the exact ID format."
+
+@app.route('/invoices', methods=['GET'])
+def get_all_invoices():
+    """Get all invoices from blockchain for audit logs page"""
+    try:
+        # Import blockchain integration from root directory
+        import sys
+        import os
+        root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, root_dir)
+        from blockchain.integration import BlockchainIntegration
+        
+        # Initialize blockchain integration
+        blockchain = BlockchainIntegration()
+        
+        # Get invoices from ICP canister
+        result = blockchain.get_all_invoices()
+        
+        if result.get("success"):
+            invoices = result.get("invoices", [])
+            
+            # Convert to frontend format
+            formatted_invoices = []
+            for invoice in invoices:
+                formatted_invoices.append({
+                    "id": invoice.get("id", ""),
+                    "status": invoice.get("status", "unknown"),
+                    "validationScore": invoice.get("validationScore", 0),
+                    "riskScore": invoice.get("riskScore", 0),
+                    "fraudRisk": invoice.get("fraudRisk", "unknown"),
+                    "timestamp": invoice.get("timestamp", 0),
+                    "vendor_name": invoice.get("vendor_name", ""),
+                    "amount": invoice.get("amount", 0.0)
+                })
+            
+            return jsonify({
+                "data": formatted_invoices,
+                "total": len(formatted_invoices),
+                "source": result.get("source", "icp_canister"),
+                "message": "Retrieved from ICP blockchain"
+            })
+        else:
+            # No fallback - return actual error from canister
+            print(f"❌ Canister query failed: {result.get('error', 'Unknown error')}")
+            
+            return jsonify({
+                "error": result.get('error', 'Failed to retrieve invoices from ICP canister'),
+                "data": [],
+                "total": 0,
+                "source": "icp_canister_error",
+                "message": "ICP canister connection failed"
+            }), 500
+    except Exception as e:
+        print(f"❌ Error in /invoices endpoint: {e}")
+        return jsonify({"error": str(e), "data": []}), 500
 
 @app.route('/upload', methods=['POST'])
 def upload_invoice():
@@ -362,8 +729,12 @@ def upload_invoice():
             print(f"❌ Unsupported file type: {file_extension}")
             return jsonify({"success": False, "error": "Unsupported file type. Please upload an image or PDF."}), 400
         
+        # Check if user wants AI processing (privacy-aware OCR)
+        use_ai = request.form.get('use_ai', 'true').lower() == 'true'  # Default to enabled
+        print(f"🤖 AI processing: {'enabled' if use_ai else 'disabled'} (privacy protection active)")
+        
         # Process the uploaded image with OCR
-        ocr_result = process_uploaded_invoice(file)
+        ocr_result = process_uploaded_invoice(file, use_ai=use_ai)
         
         print(f"🔄 OCR result: {ocr_result}")
         
@@ -376,8 +747,11 @@ def upload_invoice():
             "extracted_text": ocr_result['extracted_text'],
             "invoice_data": ocr_result['invoice_data'],
             "confidence": ocr_result['confidence'],
+            "extraction_method": ocr_result.get('extraction_method', 'OCR'),
+            "privacy_protected": ocr_result.get('privacy_protected', False),
             "message": "Invoice data extracted successfully. Review and edit before submitting for validation.",
-            "next_step": "Submit extracted data to /submit endpoint for full enterprise validation"
+            "next_step": "Submit extracted data to /submit endpoint for full enterprise validation",
+            "chat_agent_hint": "💬 Try chatting with our AI: 'check invoice [ID]' for status queries!"
         }
         return jsonify(response_data), 200
         

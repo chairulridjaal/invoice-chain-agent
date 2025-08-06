@@ -3,19 +3,21 @@ import subprocess
 import json
 import asyncio
 import os
+import time
+import hashlib
 from typing import Dict, Any, Optional
 
 class BlockchainIntegration:
     """
     ICP Canister integration for invoice validation and storage.
+    Real integration only - no simulation data.
     """
     
     def __init__(self):
-        self.canister_id = os.getenv("CANISTER_ID", "uxrrr-q7777-77774-qaaaq-cai")  # Your deployed canister ID
-        self.network = os.getenv("ICP_NETWORK", "local")  # local, testnet, or ic
-        self.dfx_path = os.getenv("DFX_PATH", "dfx")  # Path to dfx binary
+        self.canister_id = os.getenv("CANISTER_ID", "uxrrr-q7777-77774-qaaaq-cai")
+        self.network = os.getenv("ICP_NETWORK", "local")
+        self.dfx_path = os.getenv("DFX_PATH", "dfx")
         
-        # Debug logging for network configuration
         print(f"🔧 BlockchainIntegration initialized:")
         print(f"   Canister ID: {self.canister_id}")
         print(f"   Network: {self.network}")
@@ -23,158 +25,59 @@ class BlockchainIntegration:
     
     def log_invoice(self, audit_record: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Log invoice to ICP blockchain via HTTP API (production-ready)
+        Log invoice to ICP blockchain with enhanced validation data
         """
         try:
             # Extract invoice data
             invoice_data = audit_record.get('invoice_data', {})
+            validation_result = audit_record.get('validation_result', {})
             status = audit_record.get('status', 'unknown')
             explanation = audit_record.get('explanation', 'No explanation provided')
             
-            # For production deployment, use HTTP API calls to ICP
-            # This works from any environment (Render, AWS, etc.)
-            print(f"🚀 Attempting to log invoice {invoice_data.get('invoice_id')} to ICP...")
-            try:
-                result = self._call_canister_http(
-                    "storeInvoice",
-                    {
-                        "id": invoice_data.get("invoice_id", ""),
-                        "vendor_name": invoice_data.get("vendor_name", ""),
-                        "tax_id": invoice_data.get("tax_id", ""),
-                        "amount": float(invoice_data.get("amount", 0)),
-                        "date": invoice_data.get("date", ""),
-                        "status": status,
-                        "explanation": explanation,
-                        "blockchain_hash": None
-                    }
-                )
-                
-                print(f"🔍 HTTP Call Result: {result}")
-                
-                if result.get('success'):
-                    # Verify the actual blockchain response
-                    canister_response = result.get('response', '')
-                    if canister_response.strip() == '(true)':
-                        # Double-check by trying to retrieve the invoice
-                        verification_result = self._verify_invoice_stored(invoice_data.get('id', ''))
-                        
-                        if "✅ verified_in_canister" in verification_result:
-                            message = f"✅ Invoice {invoice_data.get('id')} CONFIRMED stored on ICP blockchain"
-                            verification_status = "confirmed"
-                        else:
-                            message = f"⚠️ Invoice {invoice_data.get('id')} stored (canister returned true) but verification pending"
-                            verification_status = "pending_verification"
-                        
-                        return {
-                            "success": True,
-                            "message": message,
-                            "canister_id": self.canister_id,
-                            "network": self.network,
-                            "mode": "production_http",
-                            "blockchain_response": result.get('response', ''),
-                            "transaction_hash": f"ICP-{hash(str(audit_record)) % 10**16:016x}",
-                            "verification": verification_result,
-                            "verification_status": verification_status
-                        }
-                    else:
-                        return {
-                            "success": False,
-                            "message": f"⚠️ Invoice {invoice_data.get('invoice_id')} blockchain call succeeded but got unexpected response",
-                            "canister_id": self.canister_id,
-                            "network": self.network,
-                            "mode": "production_http_warning", 
-                            "blockchain_response": result.get('response', ''),
-                            "verification": "unexpected_canister_response"
-                        }
-                else:
-                    # Enhanced simulation for production
-                    print("❌ HTTP call unsuccessful, falling back to simulation")
-                    return self._simulate_blockchain_log(audit_record)
-                    
-            except Exception as api_error:
-                print(f"⚠️ ICP HTTP API call failed: {api_error}, using enhanced simulation")
-                return self._simulate_blockchain_log(audit_record)
-                
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
-    
-    def _call_canister_http(self, method: str, data: dict) -> Dict[str, Any]:
-        """
-        Call ICP canister via HTTP API (production method)
-        """
-        try:
-            # For local development, always prefer dfx over HTTP
-            if self.network == "local":
-                print(f"🔧 Using dfx for local development...")
-                return self._call_canister_dfx(method, data)
+            # Calculate enhanced metrics for chat agent
+            validation_score = validation_result.get('score', 0)
+            risk_score = self._calculate_risk_score(validation_result)
+            fraud_risk = self._assess_fraud_level(validation_result)
             
-            # For deployed networks, use HTTP API
-            import requests
+            print(f"🚀 Logging invoice {invoice_data.get('invoice_id')} to ICP...")
             
-            # ICP HTTP Gateway endpoint (works from any environment)
-            if self.network == "ic":
-                # Mainnet IC
-                base_url = f"https://{self.canister_id}.ic0.app"
-            elif self.network == "testnet":
-                # Testnet
-                base_url = f"https://{self.canister_id}.dfinity.network"
+            result = self._call_canister_dfx(
+                "storeInvoice",
+                {
+                    "id": invoice_data.get("invoice_id", ""),
+                    "vendor_name": invoice_data.get("vendor_name", ""),
+                    "tax_id": invoice_data.get("tax_id", ""),
+                    "amount": float(invoice_data.get("amount", 0)),
+                    "date": invoice_data.get("date", ""),
+                    "status": status,
+                    "explanation": explanation,
+                    "blockchain_hash": None,
+                    "riskScore": risk_score,
+                    "validationScore": validation_score,
+                    "fraudRisk": fraud_risk
+                }
+            )
+            
+            print(f"🔍 Canister Call Result: {result}")
+            
+            if result.get('success'):
+                # Verify the invoice was stored
+                verification = self._verify_invoice_stored(invoice_data.get('invoice_id'))
+                return {
+                    "success": True,
+                    "message": f"Invoice {invoice_data.get('invoice_id')} logged to ICP canister",
+                    "canister_id": self.canister_id,
+                    "network": self.network,
+                    "verification": verification,
+                    "response": result.get('response')
+                }
             else:
-                # Should not reach here for local
-                base_url = f"http://127.0.0.1:4943"
-            
-            print(f"🌐 Attempting ICP HTTP API call: {base_url}")
-            print(f"📤 Method: {method}, Data: {data}")
-            
-            # Try to make actual HTTP call to canister
-            try:
-                # Construct the proper Candid interface call
-                candid_args = f'(record {{ id = "{data.get("id", "")}"; vendor_name = "{data.get("vendor_name", "")}"; tax_id = "{data.get("tax_id", "")}"; amount = {data.get("amount", 0)}; date = "{data.get("date", "")}"; status = "{data.get("status", "")}"; explanation = "{data.get("explanation", "")}"; blockchain_hash = null }})'
+                return {
+                    "success": False,
+                    "error": result.get('error', 'Unknown error'),
+                    "message": "Failed to log invoice to ICP canister"
+                }
                 
-                if self.network == "local":
-                    # For local development, try dfx call
-                    print(f"🔧 Attempting dfx call for local network...")
-                    result = self._call_canister_dfx(method, data)
-                    print(f"🔍 DFX Result: {result}")
-                    if result.get('success'):
-                        return result
-                    else:
-                        print(f"⚠️ DFX call failed: {result.get('error', 'Unknown error')}")
-                else:
-                    # For deployed canisters, use HTTP API
-                    endpoint = f"{base_url}/{method}"
-                    headers = {"Content-Type": "application/json"}
-                    
-                    # Make the HTTP request with timeout
-                    response = requests.post(endpoint, json=data, headers=headers, timeout=10)
-                    
-                    if response.status_code == 200:
-                        return {
-                            "success": True,
-                            "response": response.text,
-                            "endpoint": endpoint,
-                            "http_status": response.status_code
-                        }
-                    else:
-                        print(f"⚠️ HTTP call failed with status: {response.status_code}")
-                        
-            except requests.exceptions.RequestException as e:
-                print(f"⚠️ HTTP request failed: {e}")
-            except Exception as e:
-                print(f"⚠️ Canister call failed: {e}")
-            
-            # If HTTP fails, use enhanced simulation
-            print("📝 Using enhanced blockchain simulation (canister unreachable)")
-            return {
-                "success": True,
-                "response": f"Enhanced simulation - {method} called with data",
-                "endpoint": base_url,
-                "mode": "simulation_fallback",
-                "reason": "canister_unreachable"
-            }
-            
         except Exception as e:
             return {
                 "success": False,
@@ -183,49 +86,61 @@ class BlockchainIntegration:
     
     def _call_canister_dfx(self, method: str, invoice_data: dict) -> Dict[str, Any]:
         """
-        Call ICP canister using dfx CLI (for local development)
+        Call ICP canister using dfx CLI
         """
         try:
-            # Build the proper Candid arguments for storeInvoice
+            # Build the proper Candid arguments based on method
             if method == "storeInvoice":
                 # Sanitize explanation text to avoid bash issues
                 explanation = invoice_data.get("explanation", "").replace('"', '\\"').replace('\n', ' ').replace(')', '\\)')
                 explanation = explanation[:200]  # Truncate to avoid command line length issues
                 
-                candid_args = f'("{invoice_data.get("id", "")}", "{invoice_data.get("vendor_name", "")}", "{invoice_data.get("tax_id", "")}", {invoice_data.get("amount", 0)}, "{invoice_data.get("date", "")}", "{invoice_data.get("status", "")}", "{explanation}", null)'
+                # Extract validation data with defaults
+                risk_score = invoice_data.get("riskScore", invoice_data.get("risk_score", 0))
+                validation_score = invoice_data.get("validationScore", invoice_data.get("validation_score", 0))
+                fraud_risk = invoice_data.get("fraudRisk", invoice_data.get("fraud_risk", "UNKNOWN"))
+                
+                # All 10 required parameters for storeInvoice
+                candid_args = f'("{invoice_data.get("id", "")}", "{invoice_data.get("vendor_name", "")}", "{invoice_data.get("tax_id", "")}", {invoice_data.get("amount", 0)}, "{invoice_data.get("date", "")}", "{invoice_data.get("status", "")}", "{explanation}", null, {risk_score}, {validation_score}, "{fraud_risk}")'
+            elif method == "getAllInvoices":
+                candid_args = "()"
+            elif method == "getInvoice":
+                candid_args = f'("{invoice_data.get("id", "")}")'
             else:
                 # For other methods, use generic format
                 candid_args = f'("{invoice_data.get("id", "")}")'
             
-            # Build the dfx command for WSL
+            # Build the dfx command for WSL using proper bash syntax
             cmd = [
                 "wsl", "bash", "-c", 
-                f'source ~/.local/share/dfx/env && cd /mnt/c/Users/User/Documents/GitHub/invoice-chain-agent/canister && {self.dfx_path} canister call --network {self.network} {self.canister_id} {method} \'{candid_args}\''
+                f"source ~/.local/share/dfx/env && cd /mnt/c/Users/User/Documents/GitHub/invoice-chain-agent/canister && dfx canister call --network {self.network} {self.canister_id} {method} '{candid_args}'"
             ]
             
             print(f"🔗 Calling ICP canister via dfx: {method}")
             print(f"🔧 Command: {' '.join(cmd)}")
             
-            # Execute the command with proper working directory
-            canister_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'canister')
-            
+            # Execute the command - remove the cwd parameter since we're using absolute paths in the command
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=30,
-                cwd=canister_dir
+                timeout=30
             )
             
             print(f"📤 Return code: {result.returncode}")
-            print(f"📝 STDOUT: {result.stdout}")
+            print(f"📝 STDOUT: '{result.stdout}'")
+            print(f"📝 STDOUT length: {len(result.stdout)}")
             if result.stderr:
-                print(f"⚠️ STDERR: {result.stderr}")
+                print(f"⚠️ STDERR: '{result.stderr}'")
             
             if result.returncode == 0:
+                response_content = result.stdout.strip()
+                print(f"🔍 Cleaned response: '{response_content}'")
+                print(f"🔍 Response length after strip: {len(response_content)}")
+                
                 return {
                     "success": True,
-                    "response": result.stdout.strip(),
+                    "response": response_content,
                     "method": "dfx_local",
                     "canister_output": result.stdout
                 }
@@ -257,14 +172,13 @@ class BlockchainIntegration:
         Verify that an invoice was actually stored in the canister
         """
         try:
-            import time
-            # Add longer delay to allow for blockchain state propagation
+            # Add delay to allow for blockchain state propagation
             time.sleep(1.5)
             
-            # Use getAllInvoices instead of getInvoice to avoid quote escaping issues
+            # Use getAllInvoices to verify storage using the corrected format
             cmd = [
                 "wsl", "bash", "-c", 
-                f'source ~/.local/share/dfx/env && cd /mnt/c/Users/User/Documents/GitHub/invoice-chain-agent/canister && dfx canister call --network {self.network} {self.canister_id} getAllInvoices "()"'
+                f"source ~/.local/share/dfx/env && cd /mnt/c/Users/User/Documents/GitHub/invoice-chain-agent/canister && dfx canister call --network {self.network} {self.canister_id} getAllInvoices '()'"
             ]
             
             result = subprocess.run(
@@ -287,93 +201,258 @@ class BlockchainIntegration:
         except Exception as e:
             return f"⚠️ verification_failed: {str(e)}"
     
-    def _simulate_blockchain_log(self, audit_record: Dict[str, Any]) -> Dict[str, Any]:
-        """Enhanced production simulation with realistic blockchain features"""
-        invoice_data = audit_record.get('invoice_data', {})
-        invoice_id = invoice_data.get('invoice_id', 'unknown')
-        
-        # Generate realistic blockchain transaction details
-        import time
-        import hashlib
-        
-        timestamp = int(time.time())
-        tx_data = f"{invoice_id}:{timestamp}:{audit_record.get('status', 'unknown')}"
-        block_hash = hashlib.sha256(tx_data.encode()).hexdigest()[:16]
-        
-        return {
-            "success": True,
-            "message": f"Invoice {invoice_id} processed - Production blockchain integration ready",
-            "canister_id": self.canister_id,
-            "network": self.network,
-            "mode": "production_simulation",
-            "blockchain_features": {
-                "immutable_storage": True,
-                "audit_trail": True,
-                "enterprise_ready": True,
-                "smart_contracts": True
-            },
-            "transaction_hash": f"ICP-PROD-{block_hash}",
-            "block_height": timestamp % 1000000,
-            "timestamp": timestamp,
-            "gas_used": "minimal",
-            "status": "confirmed"
-        }
-    
-    def _call_canister_sync(self, method: str, args: list) -> Dict[str, Any]:
-        """Make synchronous call to ICP canister"""
+    def get_invoice_by_id(self, invoice_id: str) -> Dict[str, Any]:
+        """Get specific invoice from ICP canister"""
         try:
-            # Build the dfx command
-            args_str = f'({", ".join(args)})'
+            print(f"🔍 Querying ICP canister for invoice: {invoice_id}")
             
-            # First try with WSL
-            cmd = [
-                "wsl", "dfx", "canister", "call",
-                "--network", self.network,
-                self.canister_id,
-                method,
-                args_str
-            ]
+            # Call the canister
+            result = self._call_canister_dfx("getInvoice", {"id": invoice_id})
             
-            print(f"🔗 Calling ICP canister: {method} with args: {args_str}")
-            print(f"🔧 Command: {' '.join(cmd)}")
+            if result.get("success") and result.get("response"):
+                # Parse the canister response
+                invoice_data = self._parse_canister_invoice_response(result["response"])
+                if invoice_data:
+                    return {
+                        "success": True,
+                        "invoice": invoice_data,
+                        "source": "icp_canister"
+                    }
             
-            # Execute the command
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=30,
-                cwd="C:/Users/Chairulridjal/OneDrive/Documents/GitHub/invoice-chain-agent/canister"
-            )
+            return {"success": False, "error": "Invoice not found in canister"}
             
-            print(f"📤 Return code: {result.returncode}")
-            print(f"📝 STDOUT: {result.stdout}")
-            print(f"❌ STDERR: {result.stderr}")
+        except Exception as e:
+            print(f"❌ Error querying invoice {invoice_id}: {e}")
+            return {"success": False, "error": str(e)}
+
+    def get_all_invoices(self) -> Dict[str, Any]:
+        """Get all invoices from ICP canister"""
+        try:
+            print("📊 Querying ICP canister for all invoices...")
             
-            if result.returncode == 0:
+            result = self._call_canister_dfx("getAllInvoices", {})
+            
+            print(f"🔍 Canister call result: {result}")
+            
+            if result.get("success") and result.get("response"):
+                print(f"🔍 Got successful response, parsing...")
+                invoices = self._parse_canister_invoices_response(result["response"])
+                print(f"🔍 Parsed {len(invoices)} invoices")
                 return {
                     "success": True,
-                    "output": result.stdout.strip(),
-                    "method": method
+                    "invoices": invoices,
+                    "count": len(invoices),
+                    "source": "icp_canister"
                 }
-            else:
-                return {
-                    "success": False,
-                    "error": result.stderr.strip(),
-                    "method": method
-                }
-                
-        except subprocess.TimeoutExpired:
-            return {
-                "success": False,
-                "error": "Canister call timed out"
-            }
+            
+            print(f"❌ Call failed or empty response: success={result.get('success')}, response='{result.get('response')}'")
+            return {"success": False, "error": f"Failed to retrieve invoices from canister: {result.get('error', 'Unknown error')}"}
+            
         except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+            print(f"❌ Error querying all invoices: {e}")
+            return {"success": False, "error": str(e)}
+
+    def _parse_canister_invoice_response(self, response: str) -> Optional[Dict[str, Any]]:
+        """Parse canister response for single invoice"""
+        try:
+            print(f"📥 Raw canister response for single invoice: {response}")
+            
+            # Handle both opt record and direct record formats
+            if "opt record {" in response:
+                # Extract the record content from opt record format
+                start = response.find("opt record {") + len("opt record {")
+                brace_count = 1
+                record_end = start
+                
+                for i, char in enumerate(response[start:], start):
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            record_end = i
+                            break
+                
+                if record_end > start:
+                    record_content = response[start:record_end]
+                    invoice = self._parse_invoice_fields(record_content)
+                    if invoice.get('id'):
+                        return invoice
+                        
+            elif "record {" in response:
+                # Direct record format (same as list parsing)
+                start = response.find("record {") + len("record {")
+                brace_count = 1
+                record_end = start
+                
+                for i, char in enumerate(response[start:], start):
+                    if char == '{':
+                        brace_count += 1
+                    elif char == '}':
+                        brace_count -= 1
+                        if brace_count == 0:
+                            record_end = i
+                            break
+                
+                if record_end > start:
+                    record_content = response[start:record_end]
+                    invoice = self._parse_invoice_fields(record_content)
+                    if invoice.get('id'):
+                        return invoice
+            
+            print("❌ No parseable record found in response")
+            return None
+            
+        except Exception as e:
+            print(f"❌ Error parsing single invoice response: {e}")
+            return None
+
+    def _parse_invoice_fields(self, record_content: str) -> Dict[str, Any]:
+        """Parse individual invoice fields from record content"""
+        import re
         
+        invoice = {}
+        
+        # Parse individual fields with improved patterns
+        field_patterns = {
+            'id': r'id\s*=\s*"([^"]+)"',
+            'status': r'status\s*=\s*"([^"]+)"',
+            'vendor_name': r'vendor_name\s*=\s*"([^"]*)"',
+            'validationScore': r'validationScore\s*=\s*(\d+)',
+            'riskScore': r'riskScore\s*=\s*(\d+)',
+            'fraudRisk': r'fraudRisk\s*=\s*"([^"]*)"',
+            'amount': r'amount\s*=\s*([0-9.]+)',
+            'timestamp': r'timestamp\s*=\s*([0-9_]+)',
+            'date': r'date\s*=\s*"([^"]*)"',
+            'tax_id': r'tax_id\s*=\s*"([^"]*)"'
+        }
+        
+        for field, pattern in field_patterns.items():
+            match = re.search(pattern, record_content)
+            if match:
+                value = match.group(1)
+                # Convert numeric fields
+                if field in ['validationScore', 'riskScore']:
+                    invoice[field] = int(value) if value else 0
+                elif field == 'amount':
+                    invoice[field] = float(value) if value else 0.0
+                elif field == 'timestamp':
+                    # Remove underscores from Motoko Int format
+                    clean_timestamp = value.replace('_', '') if value else '0'
+                    invoice[field] = int(clean_timestamp)
+                else:
+                    invoice[field] = value
+        
+        print(f"✅ Parsed invoice fields: {invoice}")
+        return invoice
+
+    def _parse_canister_invoices_response(self, response: str) -> list:
+        """Parse canister response for invoice list"""
+        try:
+            print(f"📥 Raw canister response: {response}")
+            
+            # Basic parsing for Motoko response format
+            # The response contains 'vec { record { ... } }' format
+            invoices = []
+            
+            if "vec {" in response:
+                # Much simpler approach - split by record boundaries
+                import re
+                
+                # Find all individual records more reliably
+                # Look for patterns like: record { ... } (handling nested braces)
+                parts = response.split('record {')
+                
+                for i, part in enumerate(parts):
+                    if i == 0:  # Skip the first part (before first record)
+                        continue
+                        
+                    # Find the end of this record by counting braces
+                    brace_count = 1
+                    record_end = 0
+                    
+                    for j, char in enumerate(part):
+                        if char == '{':
+                            brace_count += 1
+                        elif char == '}':
+                            brace_count -= 1
+                            if brace_count == 0:
+                                record_end = j
+                                break
+                    
+                    if record_end > 0:
+                        record_content = part[:record_end]
+                        invoice = {}
+                        
+                        # Parse individual fields with simpler patterns
+                        field_patterns = {
+                            'id': r'id\s*=\s*"([^"]+)"',
+                            'status': r'status\s*=\s*"([^"]+)"',
+                            'vendor_name': r'vendor_name\s*=\s*"([^"]*)"',
+                            'validationScore': r'validationScore\s*=\s*(\d+)',
+                            'riskScore': r'riskScore\s*=\s*(\d+)',
+                            'fraudRisk': r'fraudRisk\s*=\s*"([^"]*)"',
+                            'amount': r'amount\s*=\s*([0-9.]+)',
+                            'timestamp': r'timestamp\s*=\s*([0-9_]+)',
+                            'date': r'date\s*=\s*"([^"]*)"',
+                            'tax_id': r'tax_id\s*=\s*"([^"]*)"'
+                        }
+                        
+                        for field, pattern in field_patterns.items():
+                            match = re.search(pattern, record_content)
+                            if match:
+                                value = match.group(1)
+                                # Convert numeric fields
+                                if field in ['validationScore', 'riskScore']:
+                                    invoice[field] = int(value) if value else 0
+                                elif field == 'amount':
+                                    invoice[field] = float(value) if value else 0.0
+                                elif field == 'timestamp':
+                                    # Remove underscores from Motoko Int format
+                                    clean_timestamp = value.replace('_', '') if value else '0'
+                                    invoice[field] = int(clean_timestamp)
+                                else:
+                                    invoice[field] = value
+                        
+                        # Only add if we got an ID
+                        if invoice.get('id'):
+                            invoices.append(invoice)
+                            print(f"✅ Parsed invoice: {invoice.get('id')} - {invoice}")
+            
+            print(f"📊 Successfully parsed {len(invoices)} invoices")
+            return invoices
+            
+        except Exception as e:
+            print(f"❌ Error parsing canister response: {e}")
+            import traceback
+            traceback.print_exc()
+            return []
+
+    def _calculate_risk_score(self, validation_result: Dict[str, Any]) -> int:
+        """Calculate risk score (0-100) from validation result"""
+        try:
+            score = validation_result.get('score', 0)
+            # Invert score for risk (high validation score = low risk score)
+            risk_score = max(0, 100 - score)
+            return min(100, risk_score)
+        except:
+            return 50  # Default medium risk
+
+    def _assess_fraud_level(self, validation_result: Dict[str, Any]) -> str:
+        """Assess fraud risk level based on validation result"""
+        try:
+            score = validation_result.get('score', 0)
+            fraud_flags = validation_result.get('fraud_flags', [])
+            
+            if score < 50 or len(fraud_flags) >= 3:
+                return "HIGH"
+            elif score < 75 or len(fraud_flags) >= 1:
+                return "MEDIUM"
+            else:
+                return "LOW"
+        except:
+            return "UNKNOWN"
+
     async def submit_to_blockchain(self, invoice_data: Dict[str, Any]) -> Dict[str, Any]:
         """Submit invoice to ICP Canister"""
         try:
