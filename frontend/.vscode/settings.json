@@ -1,0 +1,16 @@
+{
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "typescript.suggest.autoImports": true,
+  "typescript.preferences.useAliasesForRenames": false,
+  "typescript.updateImportsOnFileMove.enabled": "always",
+  "typescript.validate.enable": true,
+  "typescript.format.enable": true,
+  "files.associations": {
+    "*.tsx": "typescriptreact",
+    "*.ts": "typescript"
+  },
+  "emmet.includeLanguages": {
+    "typescript": "html",
+    "typescriptreact": "html"
+  }
+}

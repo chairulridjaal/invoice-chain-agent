@@ -44,6 +44,7 @@ const App: React.FC = () => {
       href: '/config', 
       icon: Settings,
       description: 'Configure custom rules'
+    },
   ];
 
   return (

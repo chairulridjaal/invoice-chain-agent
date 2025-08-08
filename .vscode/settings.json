@@ -1,0 +1,9 @@
+{
+  "typescript.preferences.includePackageJsonAutoImports": "on",
+  "typescript.validate.enable": true,
+  "typescript.surveys.enabled": false,
+  "files.associations": {
+    "*.tsx": "typescriptreact",
+    "*.ts": "typescript"
+  }
+}
